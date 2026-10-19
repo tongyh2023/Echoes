@@ -47,7 +47,7 @@ export function StoreProvider({ children }) {
   const live = hasSupabase && !state.demo;
   useEffect(() => {
     if (!hasSupabase || state.demo) return;
-    if (!state.userId) { setState((s) => ({ ...s, family: null, members: [], inviteCodes: [], storytellers: [], stories: [], activeId: null, dataReady: true })); return; }
+    if (!state.userId) { setState((s) => ({ ...s, family: null, members: [], inviteCodes: [], storytellers: [], stories: [], customQuestions: [], reactions: {}, activeId: null, dataReady: true })); return; }
     let alive = true;
     (async () => {
       try {
@@ -55,8 +55,8 @@ export function StoreProvider({ children }) {
         const pending = getPendingInvite();
         if (pending) { try { await db.joinFamily(pending); } catch (e) { console.warn('[echoes] pending invite failed', e); } clearPendingInvite(); }
         const family = await db.loadMyFamily();
-        const [tellers, members, inviteCodes, stories] = family ? await Promise.all([db.loadStorytellers(family.id), db.loadMembers(family.id), db.loadInvites(family.id), db.loadStories(family.id)]) : [[], [], [], []];
-        if (alive) setState((s) => ({ ...s, family, storytellers: tellers, members, inviteCodes, stories, activeId: tellers.some((t) => t.id === s.activeId) ? s.activeId : (tellers[0]?.id || null), dataReady: true }));
+        const [tellers, members, inviteCodes, stories, customQuestions, reactions] = family ? await Promise.all([db.loadStorytellers(family.id), db.loadMembers(family.id), db.loadInvites(family.id), db.loadStories(family.id), db.loadQuestions(family.id), db.loadReactions(family.id)]) : [[], [], [], [], [], {}];
+        if (alive) setState((s) => ({ ...s, family, storytellers: tellers, members, inviteCodes, stories, customQuestions, reactions, activeId: tellers.some((t) => t.id === s.activeId) ? s.activeId : (tellers[0]?.id || null), dataReady: true }));
       } catch (e) { console.error('[echoes] load family failed', e); if (alive) setState((s) => ({ ...s, dataReady: true })); }
     })();
     return () => { alive = false; };
@@ -109,8 +109,8 @@ export function StoreProvider({ children }) {
     },
     reloadFamily: async () => {
       const family = await db.loadMyFamily();
-      const [tellers, members, inviteCodes, stories] = family ? await Promise.all([db.loadStorytellers(family.id), db.loadMembers(family.id), db.loadInvites(family.id), db.loadStories(family.id)]) : [[], [], [], []];
-      setState((s) => ({ ...s, family, storytellers: tellers, members, inviteCodes, stories, activeId: tellers.some((t) => t.id === s.activeId) ? s.activeId : (tellers[0]?.id || null), dataReady: true }));
+      const [tellers, members, inviteCodes, stories, customQuestions, reactions] = family ? await Promise.all([db.loadStorytellers(family.id), db.loadMembers(family.id), db.loadInvites(family.id), db.loadStories(family.id), db.loadQuestions(family.id), db.loadReactions(family.id)]) : [[], [], [], [], [], {}];
+      setState((s) => ({ ...s, family, storytellers: tellers, members, inviteCodes, stories, customQuestions, reactions, activeId: tellers.some((t) => t.id === s.activeId) ? s.activeId : (tellers[0]?.id || null), dataReady: true }));
     },
     // Make a fresh invite code for this family (owner or any member).
     createInvite: async () => {
@@ -151,12 +151,24 @@ export function StoreProvider({ children }) {
       return { ...s, stories: stories_, posts, consent: { ...s.consent, [story.id]: on ? true : s.consent[story.id] } };
     }),
     updatePost: (id, fn) => setState((s) => ({ ...s, posts: s.posts.map((p) => (p.id === id ? fn(p) : p)) })),
-    addQuestion: (q) => { const id = 'cq-' + Date.now(); setState((s) => ({ ...s, customQuestions: [{ id, source: 'own', ...q }, ...(s.customQuestions || [])] })); return id; },
-    updateQuestion: (id, patch) => setState((s) => ({ ...s, customQuestions: s.customQuestions.map((q) => (q.id === id ? { ...q, ...patch } : q)) })),
-    removeQuestion: (id) => setState((s) => ({ ...s, customQuestions: s.customQuestions.filter((q) => q.id !== id) })),
+    // The family's own questions (written, edited, or asked as a follow-up). Real mode: family_questions table.
+    // Returns the question id (sync in demo mode, a promise in real mode — callers await it).
+    addQuestion: (q) => {
+      if (!live) { const id = 'cq-' + Date.now(); setState((s) => ({ ...s, customQuestions: [{ id, source: 'own', ...q }, ...(s.customQuestions || [])] })); return id; }
+      return db.insertQuestion(state.family.id, state.userId, { source: 'own', ...q, who: q.who || state.userName || state.email.split('@')[0] }).then((row) => { setState((s) => ({ ...s, customQuestions: [row, ...(s.customQuestions || [])] })); return row.id; });
+    },
+    updateQuestion: async (id, patch) => { setState((s) => ({ ...s, customQuestions: s.customQuestions.map((q) => (q.id === id ? { ...q, ...patch } : q)) })); if (live) await db.updateQuestion(id, patch); },
+    removeQuestion: async (id) => { setState((s) => ({ ...s, customQuestions: s.customQuestions.filter((q) => q.id !== id) })); if (live) await db.deleteQuestion(id); },
     setMeAvatar: async (meAvatar) => { setState((s) => ({ ...s, meAvatar })); if (live && state.userId) { try { await db.updateMyProfile(state.userId, { name: state.userName || state.email.split('@')[0], avatar: meAvatar }); } catch (e) { console.warn(e); } } },
     setInviteAvatar: (i, avatar) => setState((s) => ({ ...s, invites: s.invites.map((v, k) => (k === i ? { ...v, avatar } : v)) })),
-    react: (storyId, who, emoji) => setState((s) => { const cur = s.reactions?.[storyId] || []; const has = cur.some((r) => r.who === who && r.emoji === emoji); return { ...s, reactions: { ...s.reactions, [storyId]: has ? cur.filter((r) => !(r.who === who && r.emoji === emoji)) : [...cur, { who, emoji }] } }; }),
+    // Toggle an emoji under a story. Real mode: one row per person × emoji in story_reactions.
+    react: async (storyId, who, emoji) => {
+      const mine = (r) => (live ? r.userId === state.userId : r.who === who);
+      const cur = state.reactions?.[storyId] || []; const has = cur.some((r) => mine(r) && r.emoji === emoji);
+      setState((s) => { const c = s.reactions?.[storyId] || []; return { ...s, reactions: { ...s.reactions, [storyId]: has ? c.filter((r) => !(mine(r) && r.emoji === emoji)) : [...c, { who, userId: s.userId, emoji }] } }; });
+      if (!live) return;
+      try { if (has) await db.removeReaction(storyId, state.userId, emoji); else await db.addReaction(storyId, state.family.id, state.userId, emoji); } catch (e) { console.error('[echoes] reaction failed', e); }
+    },
     addInvite: (inv) => setState((s) => ({ ...s, invites: [...s.invites, inv] })),
     removeInvite: (i) => setState((s) => ({ ...s, invites: s.invites.filter((_, k) => k !== i) })),
     deleteAccount: () => { try { localStorage.removeItem(KEY); } catch {} setState({ ...fresh(), deleted: true }); },

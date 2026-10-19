@@ -25,7 +25,7 @@ export default function Home() {
   const next = useNextQuestion();
   const [q, setQ] = useState(''); const [f, setF] = useState(null);
   const draft = state.draft && state.draft.title ? state.draft : null;
-  const go = () => nav(next.id.startsWith('cq-') ? '/record/own?text=' + encodeURIComponent(next.text) + '&cq=' + next.id : '/record/' + next.id);
+  const go = () => nav(Boolean(next.source) ? '/record/own?text=' + encodeURIComponent(next.text) + '&cq=' + next.id : '/record/' + next.id);
   const many = stories.length >= 10;
   const facets = many ? [...new Set(stories.flatMap((s) => [...s.topics, ...(s.people || []), s.era, s.place]).filter(Boolean))] : [];
   const list = stories.filter((s) => { const hay = [s.title, ...s.topics, ...(s.people || []), s.era, s.place, ...s.text.first].join(' '); return (!f || hay.includes(f)) && (!q || hay.toLowerCase().includes(q.toLowerCase())); });

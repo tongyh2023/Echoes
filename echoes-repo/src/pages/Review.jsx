@@ -13,7 +13,7 @@ const split = (s) => s.split(/[,，、;；]/).map((x) => x.trim()).filter(Boolea
 // Everything else (AI polish, raw transcript, media, metadata) is one click away, not on the page by default.
 export default function Review() {
   const { t, lang } = useT(); const zh = lang === 'zh'; const nav = useNavigate(); const { id } = useParams();
-  const { state, setDraft, saveStory } = useStore();
+  const { state, setDraft, saveStory, updateStory } = useStore();
   const initial = id ? state.stories.find((s) => s.id === id) : state.draft;
   const [story, setStory] = useState(initial);
   const [editing, setEditing] = useState(false); const [active, setActive] = useState(null); const [showRaw, setShowRaw] = useState(false); const [more, setMore] = useState(false); const [showMedia, setShowMedia] = useState(false); const [meta, setMeta] = useState(false);
@@ -24,13 +24,17 @@ export default function Review() {
   const paras = story.text.first;
   const pendingN = story.terms.filter((x) => x.status === 'pending').length;
   const update = (patch) => setStory((s) => ({ ...s, ...patch }));
+  // Notes on an already-saved story are written to the database the moment a family member
+  // confirms, fixes or removes one — that confirmation is the product's core promise.
+  const persist = (patch) => { if (id) updateStory(id, patch); };
   const setPara = (i, v) => update({ text: { ...story.text, first: paras.map((x, k) => (k === i ? v : x)) } });
-  const setTerm = (tid, patch) => update({ terms: story.terms.map((x) => (x.id === tid ? { ...x, ...patch } : x)) });
-  const removeTerm = (tid) => { const tm = story.terms.find((x) => x.id === tid); update({ terms: story.terms.filter((x) => x.id !== tid), text: { ...story.text, first: paras.map((p) => p.split('[' + tm.word + ']').join(tm.word)) } }); };
+  const setTerm = (tid, patch) => { const terms = story.terms.map((x) => (x.id === tid ? { ...x, ...patch } : x)); update({ terms }); if (patch.status) persist({ terms }); };
+  const removeTerm = (tid) => { const tm = story.terms.find((x) => x.id === tid); const next = { terms: story.terms.filter((x) => x.id !== tid), text: { ...story.text, first: paras.map((p) => p.split('[' + tm.word + ']').join(tm.word)) } }; update(next); persist(next); };
   const addTerm = () => {
     const w = nw.word.trim(); if (!w) return; let marked = false;
     const first = paras.map((p) => { if (marked || p.includes('[' + w + ']') || !p.includes(w)) return p; marked = true; return p.replace(w, '[' + w + ']'); });
-    update({ terms: [...story.terms, { id: 'tm-' + Date.now(), word: w, kind: nw.kind.trim() || (zh ? '注释' : 'note'), note: nw.note.trim(), status: 'ok' }], text: { ...story.text, first } });
+    const next = { terms: [...story.terms, { id: 'tm-' + Date.now(), word: w, kind: nw.kind.trim() || (zh ? '注释' : 'note'), note: nw.note.trim(), status: 'ok' }], text: { ...story.text, first } };
+    update(next); persist(next);
     setNw({ word: '', kind: '', note: '' }); setAdding(false);
   };
   const polishAll = async () => { setMore(false); setPolishing(true); setHistory((h) => [...h, story.text]); const out = []; for (const p of paras) out.push(await polishParagraph(p, 'narrative')); update({ text: { ...story.text, first: out } }); setPolishing(false); };

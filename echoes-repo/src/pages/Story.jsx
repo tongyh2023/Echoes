@@ -18,8 +18,9 @@ export default function Story() {
   const [toast, toastEl] = useToast();
   if (!story) { nav('/home'); return null; }
   const pending = story.terms.filter((x) => x.status === 'pending').length;
-  const me = state.email ? state.email.split('@')[0] : (zh ? '我' : 'Me');
+  const me = state.userName || (state.email ? state.email.split('@')[0] : (zh ? '我' : 'Me'));
   const reactions = state.reactions?.[story.id] || [];
+  const isMine = (r) => (state.userId ? r.userId === state.userId : r.who === me);
   const followups = (state.customQuestions || []).filter((q) => q.from === story.id);
   const askIt = () => { const text = ask.trim(); if (!text) return; addQuestion({ text, source: 'followup', from: story.id, fromTitle: story.title, who: me }); setAsk(''); toast(zh ? '已经加到下一个问题里' : 'Added as the next question'); };
 
@@ -42,7 +43,7 @@ export default function Story() {
           <section className="mt-14 border-t border-ink pt-5">
             <div className="ed-caps mb-4">{zh ? '家里人' : 'Family'}</div>
             <div className="flex flex-wrap items-center gap-2 mb-6">
-              {EMOJI.map((e) => { const n = reactions.filter((r) => r.emoji === e).length; const mine = reactions.some((r) => r.emoji === e && r.who === me); return <button key={e} className={'px-3 py-1.5 border text-[14px] cursor-pointer ' + (mine ? 'border-ink bg-ink text-paper' : 'border-line hover:border-ink')} onClick={() => react(story.id, me, e)}>{e}{n > 0 && <span className="ml-1.5 tabular-nums">{n}</span>}</button>; })}
+              {EMOJI.map((e) => { const n = reactions.filter((r) => r.emoji === e).length; const mine = reactions.some((r) => r.emoji === e && isMine(r)); return <button key={e} className={'px-3 py-1.5 border text-[14px] cursor-pointer ' + (mine ? 'border-ink bg-ink text-paper' : 'border-line hover:border-ink')} onClick={() => react(story.id, me, e)}>{e}{n > 0 && <span className="ml-1.5 tabular-nums">{n}</span>}</button>; })}
               {reactions.length > 0 && <span className="text-[13px] text-ink-3 ml-2">{[...new Set(reactions.map((r) => r.who))].join('、')}</span>}
             </div>
             <div className="ed-caps mb-2">{zh ? '读完想接着问' : 'Ask a follow-up'}</div>

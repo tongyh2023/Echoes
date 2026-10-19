@@ -20,11 +20,11 @@ export default function Pick() {
   const asked = new Set(state.stories.map((s) => s.questionId));
   useEffect(() => { if (loc.state?.own) setOpenCh('own'); }, [loc.state]);
   const toggle = (id) => { setOpenCh(openCh === id ? null : id); if (openCh === id) return; setTimeout(() => document.getElementById('ch-' + id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 30); };
-  const record = (q, text) => nav(q.id.startsWith('cq-') ? '/record/own?text=' + encodeURIComponent(text) + '&cq=' + q.id : '/record/' + q.id);
+  const record = (q, text) => nav(Boolean(q.source) ? '/record/own?text=' + encodeURIComponent(text) + '&cq=' + q.id : '/record/' + q.id);
   const openSheet = (q, text) => { setSel({ q, text }); setDraft(text); setEditing(false); };
   const saveEdit = () => {
     const text = draft.trim(); if (!text) return;
-    if (sel.q.id.startsWith('cq-')) { updateQuestion(sel.q.id, { text }); setSel({ ...sel, text }); }
+    if (sel.Boolean(q.source)) { updateQuestion(sel.q.id, { text }); setSel({ ...sel, text }); }
     else { const id = addQuestion({ text, source: 'edited', from: sel.q.id }); setSel({ q: { id, source: 'edited' }, text }); setOpenCh('own'); }
     setEditing(false);
   };
@@ -60,7 +60,7 @@ export default function Pick() {
                         {mine.map((q) => <Row key={q.id} q={q} text={q.text} meta={srcLabel(q)} />)}
                         <div className="py-5">
                           <textarea className="input q-text min-h-[88px]" value={own} onChange={(e) => setOwn(e.target.value)} placeholder={t('pick.ownPh')} />
-                          <div className="flex items-center gap-6 mt-3"><button className="btn btn-primary btn-sm" disabled={!own.trim()} onClick={() => { const id = addQuestion({ text: own.trim() }); setOwn(''); nav('/record/own?text=' + encodeURIComponent(own.trim()) + '&cq=' + id); }}>{zh ? '就问这个，去录' : 'Record this'} →</button><button className="link-soft text-[13.5px]" disabled={!own.trim()} onClick={() => { addQuestion({ text: own.trim() }); setOwn(''); }}>{zh ? '先存着' : 'Save for later'}</button></div>
+                          <div className="flex items-center gap-6 mt-3"><button className="btn btn-primary btn-sm" disabled={!own.trim()} onClick={async () => { const id = await addQuestion({ text: own.trim() }); setOwn(''); nav('/record/own?text=' + encodeURIComponent(own.trim()) + '&cq=' + id); }}>{zh ? '就问这个，去录' : 'Record this'} →</button><button className="link-soft text-[13.5px]" disabled={!own.trim()} onClick={() => { addQuestion({ text: own.trim() }); setOwn(''); }}>{zh ? '先存着' : 'Save for later'}</button></div>
                         </div>
                       </>
                     ) : QUESTIONS.filter((q) => q.cat === c.id).map((q) => <Row key={q.id} q={q} text={fillQ(q, p, lang)} meta={asked.has(q.id) ? (zh ? '已经录过 · 可以再录一次' : 'Recorded before · can record again') : null} />)}
@@ -88,7 +88,7 @@ export default function Pick() {
                 <div className="flex flex-wrap items-center gap-6">
                   <button className="btn btn-primary btn-lg" onClick={() => record(sel.q, sel.text)}>{zh ? '录这个' : 'Record this'} →</button>
                   <button className="link-soft text-[14.5px]" onClick={() => setEditing(true)}>{zh ? '改一改说法' : 'Reword it'}</button>
-                  {sel.q.id.startsWith('cq-') && <button className="link-soft text-[14.5px]" onClick={() => { removeQuestion(sel.q.id); setSel(null); }}>{zh ? '删除' : 'Remove'}</button>}
+                  {sel.Boolean(q.source) && <button className="link-soft text-[14.5px]" onClick={() => { removeQuestion(sel.q.id); setSel(null); }}>{zh ? '删除' : 'Remove'}</button>}
                 </div>
               </>
             )}

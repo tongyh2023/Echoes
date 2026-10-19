@@ -157,3 +157,44 @@ export async function updateStory(id, s) {
 export async function deleteStory(id) {
   unwrap(await supabase.from('stories').delete().eq('id', id));
 }
+
+// ---------- the family's own questions ----------
+
+const rowToQuestion = (r) => ({ id: r.id, text: r.text, source: r.source, from: r.from_story || r.from_q || null, fromTitle: r.from_title || '', who: r.who || '', createdBy: r.created_by, date: (r.created_at || '').slice(0, 10) });
+
+export async function loadQuestions(familyId) {
+  const rows = unwrap(await supabase.from('family_questions').select('*, profiles:created_by(name)').eq('family_id', familyId).order('created_at', { ascending: false }));
+  return (rows || []).map((r) => rowToQuestion({ ...r, who: r.profiles?.name || '' }));
+}
+
+export async function insertQuestion(familyId, userId, q) {
+  const isStory = q.source === 'followup';
+  const row = unwrap(await supabase.from('family_questions').insert({ family_id: familyId, created_by: userId, text: q.text, source: q.source || 'own', from_story: isStory ? q.from : null, from_q: !isStory ? q.from || null : null, from_title: q.fromTitle || null }).select().single());
+  return rowToQuestion({ ...row, who: q.who || '' });
+}
+
+export async function updateQuestion(id, patch) {
+  unwrap(await supabase.from('family_questions').update({ text: patch.text }).eq('id', id));
+}
+
+export async function deleteQuestion(id) {
+  unwrap(await supabase.from('family_questions').delete().eq('id', id));
+}
+
+// ---------- reactions under a story ----------
+
+// All reactions for the family, grouped by story: { storyId: [{ who, userId, emoji }] }
+export async function loadReactions(familyId) {
+  const rows = unwrap(await supabase.from('story_reactions').select('story_id, user_id, emoji, profiles:user_id(name)').eq('family_id', familyId));
+  const out = {};
+  for (const r of rows || []) (out[r.story_id] ||= []).push({ userId: r.user_id, who: r.profiles?.name || '', emoji: r.emoji });
+  return out;
+}
+
+export async function addReaction(storyId, familyId, userId, emoji) {
+  unwrap(await supabase.from('story_reactions').insert({ story_id: storyId, family_id: familyId, user_id: userId, emoji }));
+}
+
+export async function removeReaction(storyId, userId, emoji) {
+  unwrap(await supabase.from('story_reactions').delete().eq('story_id', storyId).eq('user_id', userId).eq('emoji', emoji));
+}
