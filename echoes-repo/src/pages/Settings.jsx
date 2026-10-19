@@ -3,11 +3,12 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import Shell, { Avatar, Narrow } from '../components/Shell';
 import { useT, LANGUAGES } from '../lib/i18n';
 import { useStore, FREE_LIMIT } from '../lib/store';
+import { useAuth } from '../lib/auth';
 import { profileView } from '../lib/loc';
 
 export default function Settings() {
   const { lang } = useT(); const zh = lang === 'zh'; const nav = useNavigate();
-  const { state, allStories, setActive, setPlan, signOut, deleteAccount, updateStoryteller, reset, setMeAvatar } = useStore();
+  const { state, allStories, setActive, setPlan, deleteAccount, updateStoryteller, reset, setMeAvatar } = useStore(); const auth = useAuth();
   const [confirmDel, setConfirmDel] = useState(false); const [exported, setExported] = useState(false);
   const used = allStories.length;
   const Section = ({ title, children }) => <section className="border-t border-ink pt-4 mb-12"><h2 className="h2 mb-5">{title}</h2>{children}</section>;
@@ -47,7 +48,7 @@ export default function Settings() {
           <div className="text-[14px] mb-4"><span className="text-ink-2">{zh ? '邮箱' : 'Email'}</span> · {state.email || '—'} {state.verified ? <span className="ed-caps !text-accent ml-2">{zh ? '已验证' : 'Verified'}</span> : <span className="ed-caps ml-2">{zh ? '未验证' : 'Unverified'}</span>}</div>
           <div className="flex flex-wrap items-center gap-6">
             <button className="btn" onClick={() => { setExported(true); setTimeout(() => setExported(false), 2500); }}>{exported ? (zh ? '✓ 已开始打包，稍后发到邮箱' : '✓ Packing — link by email shortly') : (zh ? '导出全部内容' : 'Export everything')}</button>
-            <button className="link-soft text-[14px]" onClick={() => { signOut(); nav('/'); }}>{zh ? '退出登录' : 'Log out'}</button>
+            <button className="link-soft text-[14px]" onClick={async () => { await auth.signOut(); nav('/'); }}>{zh ? '退出登录' : 'Log out'}</button>
           </div>
           <p className="text-[12.5px] text-ink-3 mt-2 m-0">{zh ? '导出包含所有录音、文字、照片和注释，zip 格式。' : 'Export includes all recordings, text, photos and notes as a zip.'}</p>
         </Section>

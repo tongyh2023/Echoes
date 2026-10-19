@@ -4,9 +4,10 @@ import { BrowserRouter, MemoryRouter, Routes, Route, Navigate } from 'react-rout
 import './index.css';
 import { I18nProvider } from './lib/i18n';
 import { StoreProvider, useStore } from './lib/store';
+import { AuthProvider, useAuth } from './lib/auth';
 import Landing from './pages/Landing';
 import Legal from './pages/Legal';
-import { SignUp, LogIn, Forgot, Verify } from './pages/AuthPages';
+import { SignUp, LogIn, Forgot, Verify, ResetPassword } from './pages/AuthPages';
 import { Mode, Profile } from './pages/Onboarding';
 import Home from './pages/Home';
 import Pick from './pages/Pick';
@@ -24,7 +25,24 @@ import { NotFound, Deleted } from './pages/Misc';
 // Real URLs (/home, /story/123) on Vercel — vercel.json rewrites every path to index.html. Sandboxed previews fall back to in-memory routing.
 const Router = (typeof window !== 'undefined' && (window.location.origin === 'null' || window.location.protocol === 'about:' || window.location.protocol === 'file:')) ? MemoryRouter : BrowserRouter;
 
-function Guard({ children }) { const { state } = useStore(); return state.profile ? children : <Navigate to={state.signedIn ? '/mode' : '/login'} replace />; }
+// The gatekeeper for every in-app page.
+//  1. Wait until Supabase has answered "who is signed in?" (avoids a flash of the login page on refresh).
+//  2. Nobody signed in → /login.   3. Signed in but no storyteller yet → onboarding (/mode).
+function Guard({ children }) {
+  const { state } = useStore(); const auth = useAuth();
+  if (!auth.ready) return null;
+  const signedIn = auth.hasSupabase ? (Boolean(auth.user) || state.demo) : state.signedIn;
+  if (!signedIn) return <Navigate to="/login" replace />;
+  return state.profile ? children : <Navigate to="/mode" replace />;
+}
+
+// Onboarding pages need an account but not yet a storyteller.
+function NeedsAccount({ children }) {
+  const { state } = useStore(); const auth = useAuth();
+  if (!auth.ready) return null;
+  const signedIn = auth.hasSupabase ? (Boolean(auth.user) || state.demo) : state.signedIn;
+  return signedIn ? children : <Navigate to="/login" replace />;
+}
 
 function App() {
   return (
@@ -42,8 +60,9 @@ function App() {
       <Route path="/login" element={<LogIn />} />
       <Route path="/forgot" element={<Forgot />} />
       <Route path="/verify" element={<Verify />} />
-      <Route path="/mode" element={<Mode />} />
-      <Route path="/profile" element={<Profile />} />
+      <Route path="/reset" element={<ResetPassword />} />
+      <Route path="/mode" element={<NeedsAccount><Mode /></NeedsAccount>} />
+      <Route path="/profile" element={<NeedsAccount><Profile /></NeedsAccount>} />
       {/* app */}
       <Route path="/home" element={<Guard><Home /></Guard>} />
       <Route path="/pick" element={<Guard><Pick /></Guard>} />
@@ -66,6 +85,6 @@ function App() {
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <I18nProvider><StoreProvider><Router><App /></Router></StoreProvider></I18nProvider>
+    <I18nProvider><StoreProvider><AuthProvider><Router><App /></Router></AuthProvider></StoreProvider></I18nProvider>
   </React.StrictMode>
 );

@@ -8,6 +8,8 @@ export const FREE_LIMIT = 10;
 
 const fresh = () => ({
   signedIn: false, email: '', verified: false, plan: 'free',
+  userId: null, userName: '',                  // filled from Supabase Auth (see lib/auth.jsx)
+  demo: false,                                 // true only when entered through the sample-data shortcut
   storytellers: [], activeId: null,           // several storytellers per account
   stories: [], posts: COMMUNITY_POSTS, draft: null,
   invites: [{ name: 'Helen', sub: '孙女', perms: ['read', 'correct', 'add'] }],
@@ -33,12 +35,16 @@ export function StoreProvider({ children }) {
     allStories: state.stories,
     signIn: (email) => setState((s) => ({ ...s, signedIn: true, email: email || s.email || 'you@example.com' })),
     verify: () => setState((s) => ({ ...s, verified: true })),
-    signOut: () => setState((s) => ({ ...s, signedIn: false })),
+    signOut: () => setState((s) => ({ ...s, signedIn: false, demo: false, userId: null, userName: '' })),
+    // Called by AuthProvider whenever Supabase reports who is signed in (null = nobody).
+    setAuthUser: (u) => setState((s) => (u
+      ? { ...s, signedIn: true, demo: false, userId: u.id, email: u.email, verified: u.verified, userName: u.name || s.userName }
+      : { ...s, signedIn: false, userId: null, userName: '' })),
     addStoryteller: (p) => setState((s) => { const id = p.id || 'st-' + Date.now(); return { ...s, storytellers: [...s.storytellers.filter((x) => x.id !== id), { ...p, id }], activeId: id }; }),
     updateStoryteller: (id, patch) => setState((s) => ({ ...s, storytellers: s.storytellers.map((x) => (x.id === id ? { ...x, ...patch } : x)) })),
     setActive: (id) => setState((s) => ({ ...s, activeId: id })),
     setProfile: (p) => api.addStoryteller(p),
-    seedDemo: () => setState((s) => ({ ...s, signedIn: true, verified: true, email: 'shaojing@example.com', storytellers: [{ ...DEFAULT_PROFILE, id: 'st-demo' }], activeId: 'st-demo', stories: SEED_STORIES.map((x) => ({ ...x, storytellerId: 'st-demo' })) })),
+    seedDemo: () => setState((s) => ({ ...s, signedIn: true, demo: true, verified: true, email: 'shaojing@example.com', storytellers: [{ ...DEFAULT_PROFILE, id: 'st-demo' }], activeId: 'st-demo', stories: SEED_STORIES.map((x) => ({ ...x, storytellerId: 'st-demo' })) })),
     reset: () => { try { localStorage.removeItem(KEY); } catch {} setState(fresh()); },
     setPlan: (plan) => setState((s) => ({ ...s, plan })),
     setFamilyName: (familyName) => setState((s) => ({ ...s, familyName })),
