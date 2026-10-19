@@ -51,3 +51,60 @@ export async function updateStoryteller(id, p) {
   const row = unwrap(await supabase.from('storytellers').update(storytellerToRow(p)).eq('id', id).select().single());
   return rowToStoryteller(row);
 }
+
+// ---------- members ----------
+
+// Everyone in the family, with the display name from their profile.
+export async function loadMembers(familyId) {
+  const rows = unwrap(await supabase.from('family_members').select('user_id, role, joined_at, profiles(name, avatar_url)').eq('family_id', familyId).order('joined_at'));
+  return (rows || []).map((r) => ({ userId: r.user_id, role: r.role, joinedAt: r.joined_at, name: r.profiles?.name || '', avatar: r.profiles?.avatar_url || null }));
+}
+
+export async function removeMember(familyId, userId) {
+  unwrap(await supabase.from('family_members').delete().eq('family_id', familyId).eq('user_id', userId));
+}
+
+// My own display name / photo (profiles row is created automatically at sign-up).
+export async function updateMyProfile(userId, patch) {
+  unwrap(await supabase.from('profiles').update({ name: patch.name, avatar_url: patch.avatar }).eq('id', userId));
+}
+
+// ---------- invites ----------
+
+// A code people can read out loud over the phone: 4 letters + 4 digits, e.g. TONG-4821.
+// The letters come from the family name when it is Latin, otherwise from a safe alphabet.
+const makeCode = (familyName) => {
+  const letters = (familyName || '').replace(/[^A-Za-z]/g, '').toUpperCase().slice(0, 4);
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  let pre = letters; while (pre.length < 4) pre += alphabet[Math.floor(Math.random() * alphabet.length)];
+  return pre + '-' + String(1000 + Math.floor(Math.random() * 9000));
+};
+
+// Unused codes for this family (so the page can show the current one instead of making new ones).
+export async function loadInvites(familyId) {
+  const rows = unwrap(await supabase.from('invites').select('code, created_at, used_by').eq('family_id', familyId).is('used_by', null).order('created_at', { ascending: false }));
+  return (rows || []).map((r) => r.code);
+}
+
+export async function createInvite(familyId, familyName, userId) {
+  const code = makeCode(familyName);
+  unwrap(await supabase.from('invites').insert({ code, family_id: familyId, created_by: userId }));
+  return code;
+}
+
+export async function deleteInvite(code) {
+  unwrap(await supabase.from('invites').delete().eq('code', code));
+}
+
+// What an invited person sees before joining (public function, see 003_invites.sql).
+export async function previewInvite(code) {
+  const rows = unwrap(await supabase.rpc('invite_preview', { invite_code: code }));
+  const r = rows?.[0];
+  return r ? { familyName: r.family_name, storytellerName: r.storyteller_name, storyCount: r.story_count } : null;
+}
+
+// Join with a code. join_family runs on the server because, at that moment,
+// the caller is not yet a member and RLS would refuse a direct insert.
+export async function joinFamily(code) {
+  return unwrap(await supabase.rpc('join_family', { invite_code: code })); // returns the family id
+}

@@ -13,6 +13,8 @@ const fresh = () => ({
   userId: null, userName: '',                  // filled from Supabase Auth (see lib/auth.jsx)
   demo: false,                                 // true only when entered through the sample-data shortcut
   family: null,                                // { id, name, role } from the families table
+  members: [],                                 // [{ userId, role, name, avatar }] from family_members + profiles
+  inviteCodes: [],                             // unused codes for this family (newest first)
   dataReady: !hasSupabase,                     // false until the user's family + storytellers have been loaded
   storytellers: [], activeId: null,           // several storytellers per account
   stories: [], posts: COMMUNITY_POSTS, draft: null,
@@ -24,6 +26,12 @@ const fresh = () => ({
   reactions: {},                               // storyId -> [{ who, emoji }]
   meAvatar: null,                              // data URL, resized client-side
 });
+
+// An invite code remembered across sign-up (sessionStorage survives the redirect, dies with the tab).
+const PENDING = 'echoes-pending-invite';
+export const setPendingInvite = (code) => { try { sessionStorage.setItem(PENDING, code); } catch {} };
+const getPendingInvite = () => { try { return sessionStorage.getItem(PENDING); } catch { return null; } };
+const clearPendingInvite = () => { try { sessionStorage.removeItem(PENDING); } catch {} };
 
 export function StoreProvider({ children }) {
   // Seed posts carry non-serialisable/static fields (cover image URLs, body text). Re-apply them over whatever is cached so a stale cache never hides new seed content.
@@ -39,13 +47,16 @@ export function StoreProvider({ children }) {
   const live = hasSupabase && !state.demo;
   useEffect(() => {
     if (!hasSupabase || state.demo) return;
-    if (!state.userId) { setState((s) => ({ ...s, family: null, storytellers: [], activeId: null, dataReady: true })); return; }
+    if (!state.userId) { setState((s) => ({ ...s, family: null, members: [], inviteCodes: [], storytellers: [], activeId: null, dataReady: true })); return; }
     let alive = true;
     (async () => {
       try {
+        // Someone who signed up through an invite link: join that family first, then load it.
+        const pending = getPendingInvite();
+        if (pending) { try { await db.joinFamily(pending); } catch (e) { console.warn('[echoes] pending invite failed', e); } clearPendingInvite(); }
         const family = await db.loadMyFamily();
-        const tellers = family ? await db.loadStorytellers(family.id) : [];
-        if (alive) setState((s) => ({ ...s, family, storytellers: tellers, activeId: tellers.some((t) => t.id === s.activeId) ? s.activeId : (tellers[0]?.id || null), dataReady: true }));
+        const [tellers, members, inviteCodes] = family ? await Promise.all([db.loadStorytellers(family.id), db.loadMembers(family.id), db.loadInvites(family.id)]) : [[], [], []];
+        if (alive) setState((s) => ({ ...s, family, storytellers: tellers, members, inviteCodes, activeId: tellers.some((t) => t.id === s.activeId) ? s.activeId : (tellers[0]?.id || null), dataReady: true }));
       } catch (e) { console.error('[echoes] load family failed', e); if (alive) setState((s) => ({ ...s, dataReady: true })); }
     })();
     return () => { alive = false; };
@@ -89,7 +100,28 @@ export function StoreProvider({ children }) {
       if (live && state.family) { await db.renameFamily(state.family.id, familyName); setState((s) => ({ ...s, family: { ...s.family, name: familyName } })); return; }
       setState((s) => ({ ...s, familyName }));
     },
-    joinFamily: (code, name) => { if (!/^[A-Z]{3,6}-\d{4}$/i.test(code)) return false; api.seedDemo(); setState((s) => ({ ...s, email: name || s.email, invites: [...s.invites, { name: name || 'You', sub: 'member', perms: ['read', 'correct', 'add'], me: true }] })); return true; },
+    // Join a family with a code. Real mode: server-side join_family, then reload everything for the new family.
+    joinFamily: async (code, name) => {
+      if (!live) { if (!/^[A-Z]{3,6}-\d{4}$/i.test(code)) return false; api.seedDemo(); setState((s) => ({ ...s, email: name || s.email, invites: [...s.invites, { name: name || 'You', sub: 'member', perms: ['read', 'correct', 'add'], me: true }] })); return true; }
+      await db.joinFamily(code.trim().toUpperCase());
+      await api.reloadFamily();
+      return true;
+    },
+    reloadFamily: async () => {
+      const family = await db.loadMyFamily();
+      const [tellers, members, inviteCodes] = family ? await Promise.all([db.loadStorytellers(family.id), db.loadMembers(family.id), db.loadInvites(family.id)]) : [[], [], []];
+      setState((s) => ({ ...s, family, storytellers: tellers, members, inviteCodes, activeId: tellers.some((t) => t.id === s.activeId) ? s.activeId : (tellers[0]?.id || null), dataReady: true }));
+    },
+    // Make a fresh invite code for this family (owner or any member).
+    createInvite: async () => {
+      if (!live || !state.family) return null;
+      const code = await db.createInvite(state.family.id, state.family.name, state.userId);
+      setState((s) => ({ ...s, inviteCodes: [code, ...s.inviteCodes] }));
+      return code;
+    },
+    revokeInvite: async (code) => { if (!live) return; await db.deleteInvite(code); setState((s) => ({ ...s, inviteCodes: s.inviteCodes.filter((c) => c !== code) })); },
+    removeMember: async (userId) => { if (!live || !state.family) return; await db.removeMember(state.family.id, userId); setState((s) => ({ ...s, members: s.members.filter((m) => m.userId !== userId) })); },
+    previewInvite: (code) => (live ? db.previewInvite(code.trim().toUpperCase()) : Promise.resolve(null)),
     setDraft: (draft) => setState((s) => ({ ...s, draft })),
     saveStory: (story) => setState((s) => {
       const st = { ...story, storytellerId: story.storytellerId || s.activeId };
@@ -108,7 +140,7 @@ export function StoreProvider({ children }) {
     addQuestion: (q) => { const id = 'cq-' + Date.now(); setState((s) => ({ ...s, customQuestions: [{ id, source: 'own', ...q }, ...(s.customQuestions || [])] })); return id; },
     updateQuestion: (id, patch) => setState((s) => ({ ...s, customQuestions: s.customQuestions.map((q) => (q.id === id ? { ...q, ...patch } : q)) })),
     removeQuestion: (id) => setState((s) => ({ ...s, customQuestions: s.customQuestions.filter((q) => q.id !== id) })),
-    setMeAvatar: (meAvatar) => setState((s) => ({ ...s, meAvatar })),
+    setMeAvatar: async (meAvatar) => { setState((s) => ({ ...s, meAvatar })); if (live && state.userId) { try { await db.updateMyProfile(state.userId, { name: state.userName || state.email.split('@')[0], avatar: meAvatar }); } catch (e) { console.warn(e); } } },
     setInviteAvatar: (i, avatar) => setState((s) => ({ ...s, invites: s.invites.map((v, k) => (k === i ? { ...v, avatar } : v)) })),
     react: (storyId, who, emoji) => setState((s) => { const cur = s.reactions?.[storyId] || []; const has = cur.some((r) => r.who === who && r.emoji === emoji); return { ...s, reactions: { ...s.reactions, [storyId]: has ? cur.filter((r) => !(r.who === who && r.emoji === emoji)) : [...cur, { who, emoji }] } }; }),
     addInvite: (inv) => setState((s) => ({ ...s, invites: [...s.invites, inv] })),

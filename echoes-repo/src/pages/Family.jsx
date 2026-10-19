@@ -10,11 +10,19 @@ import { profileView } from '../lib/loc';
 // Everyone in the family sees every story recorded by anyone in it; nobody outside does.
 export default function Family() {
   const { t, lang } = useT(); const zh = lang === 'zh'; const nav = useNavigate();
-  const { state, addInvite, removeInvite, allStories, setActive, setFamilyName, updateStoryteller, setMeAvatar, setInviteAvatar } = useStore(); const fam = useFamilyName(); const [renaming, setRenaming] = useState(false); const [nm, setNm] = useState('');
-  const [contact, setContact] = useState(''); const perms = ['read', 'correct', 'add']; const [toast, toastEl] = useToast();
-  const labels = { read: t('invite.read'), correct: t('invite.correct'), add: t('invite.add') };
-  const you = { name: state.email ? state.email.split('@')[0] : (zh ? '我' : 'Me'), sub: t('family.creator'), perms, me: true };
-  const members = [you, ...state.invites];
+  const { state, live, addInvite, removeInvite, removeMember, createInvite, revokeInvite, allStories, setActive, setFamilyName, updateStoryteller, setMeAvatar, setInviteAvatar } = useStore(); const fam = useFamilyName(); const [renaming, setRenaming] = useState(false); const [nm, setNm] = useState('');
+  const [contact, setContact] = useState(''); const perms = ['read', 'correct', 'add']; const [toast, toastEl] = useToast(); const [making, setMaking] = useState(false);
+  const you = { name: state.userName || (state.email ? state.email.split('@')[0] : (zh ? '我' : 'Me')), sub: t('family.creator'), perms, me: true };
+  // Real mode: members come from the family_members table; demo mode keeps the local list.
+  const members = live
+    ? state.members.map((m) => ({ name: m.name || (zh ? '家人' : 'Member'), sub: m.role === 'owner' ? 'creator' : 'member', me: m.userId === state.userId, userId: m.userId, avatar: m.avatar }))
+    : [you, ...state.invites];
+  const isOwner = !live || state.family?.role === 'owner';
+  // The current invite code and the link that carries it. Codes live in the invites table.
+  const code = live ? state.inviteCodes[0] : state.inviteCode;
+  const origin = typeof window !== 'undefined' && /^https?:/.test(window.location.origin) ? window.location.origin : 'https://echoestory.com';
+  const inviteLink = code ? origin + '/invite/' + code : '';
+  const newCode = async () => { setMaking(true); try { await createInvite(); toast(zh ? '新邀请码已生成' : 'New code created'); } catch (e) { toast((zh ? '没生成：' : 'Failed: ') + e.message); } finally { setMaking(false); } };
   return (
     <Shell>
       {toastEl}
@@ -44,8 +52,8 @@ export default function Family() {
               {members.map((v, i) => (
                 <div key={i} className="py-4 flex items-center gap-4">
                   <Avatar name={v.name} src={v.me ? state.meAvatar : v.avatar} size="w-12 h-12 text-[16px]" me={v.me && !state.meAvatar} onPick={(url) => (v.me ? setMeAvatar(url) : setInviteAvatar(i - 1, url))} />
-                  <span className="flex-1 min-w-0"><span className="block font-medium">{v.name}{v.me && <span className="text-[12px] text-ink-3 font-normal ml-2">· {t('invite.you')}</span>}</span><span className="block text-[12.5px] text-ink-2">{v.me ? t('family.creator') : v.sub === '待接受' || v.sub === 'pending' ? t('invite.pending') : v.sub === 'member' ? t('family.member') : v.sub}</span></span>
-                  {!v.me && <button className="link-soft text-[13px]" onClick={() => removeInvite(i - 1)}>{t('invite.remove')}</button>}
+                  <span className="flex-1 min-w-0"><span className="block font-medium">{v.name}{v.me && <span className="text-[12px] text-ink-3 font-normal ml-2">· {t('invite.you')}</span>}</span><span className="block text-[12.5px] text-ink-2">{v.sub === 'creator' ? t('family.creator') : v.sub === '待接受' || v.sub === 'pending' ? t('invite.pending') : v.sub === 'member' ? t('family.member') : v.sub}</span></span>
+                  {!v.me && isOwner && <button className="link-soft text-[13px]" onClick={() => (live ? removeMember(v.userId) : removeInvite(i - 1))}>{t('invite.remove')}</button>}
                 </div>
               ))}
             </div>
@@ -55,10 +63,19 @@ export default function Family() {
         <div className="aside-block">
           <div className="ed-caps mb-2">{t('invite.inviteTitle')}</div>
           <p className="text-[13.5px] text-ink-2 mb-4">{t('invite.inviteSub')}</p>
-          <input className="field w-full mb-4 text-[15px]" type="email" value={contact} onChange={(e) => setContact(e.target.value)} placeholder={t('invite.contactPh')} />
-          <button className="btn btn-primary" disabled={!/^\S+@\S+\.\S+$/.test(contact)} onClick={() => { addInvite({ name: contact, sub: 'pending', perms }); setContact(''); toast(zh ? '邀请已发送' : 'Invitation sent'); }}>{t('invite.send')}</button>
-          <div className="mt-6 pt-4 border-t border-line"><div className="flex items-baseline justify-between"><span className="ed-caps">{t('family.code')}</span><button className="link-soft text-[12.5px]" onClick={() => { navigator.clipboard?.writeText(state.inviteCode); toast(t('invite.copied')); }}>{zh ? '复制' : 'Copy'}</button></div><div className="serif text-[26px] tracking-[.12em] font-medium mt-1">{state.inviteCode}</div><p className="text-[12.5px] text-ink-3 m-0 mt-1">{t('family.codeHint')}</p></div>
-          <div className="mt-5 grid gap-2 text-[13.5px]"><button className="link-soft w-fit" onClick={() => { navigator.clipboard?.writeText('https://echoes.app/#/invite/demo'); toast(t('invite.copied')); }}>{t('invite.copy')}</button><button className="link-soft w-fit" onClick={() => nav('/invite/demo')}>{t('invite.preview')}</button></div>
+          {!live && (<><input className="field w-full mb-4 text-[15px]" type="email" value={contact} onChange={(e) => setContact(e.target.value)} placeholder={t('invite.contactPh')} />
+          <button className="btn btn-primary" disabled={!/^\S+@\S+\.\S+$/.test(contact)} onClick={() => { addInvite({ name: contact, sub: 'pending', perms }); setContact(''); toast(zh ? '邀请已发送' : 'Invitation sent'); }}>{t('invite.send')}</button></>)}
+          <div className={(live ? '' : 'mt-6 pt-4 border-t border-line')}>
+            <div className="flex items-baseline justify-between"><span className="ed-caps">{t('family.code')}</span>{code && <button className="link-soft text-[12.5px]" onClick={() => { navigator.clipboard?.writeText(code); toast(t('invite.copied')); }}>{zh ? '复制' : 'Copy'}</button>}</div>
+            {code ? <div className="serif text-[26px] tracking-[.12em] font-medium mt-1">{code}</div> : <button className="btn btn-primary mt-3" disabled={making} onClick={newCode}>{making ? '…' : (zh ? '生成邀请码' : 'Create an invite code')}</button>}
+            <p className="text-[12.5px] text-ink-3 m-0 mt-1">{t('family.codeHint')}</p>
+          </div>
+          {code && <div className="mt-5 grid gap-2 text-[13.5px]">
+            <button className="link-soft w-fit" onClick={() => { navigator.clipboard?.writeText(inviteLink); toast(t('invite.copied')); }}>{t('invite.copy')}</button>
+            <button className="link-soft w-fit" onClick={() => nav('/invite/' + code)}>{t('invite.preview')}</button>
+            {live && <button className="link-soft w-fit" disabled={making} onClick={newCode}>{zh ? '换一个新码' : 'Make a new code'}</button>}
+            {live && <button className="link-soft w-fit !text-ink-3" onClick={async () => { await revokeInvite(code); toast(zh ? '已作废' : 'Revoked'); }}>{zh ? '作废这个码' : 'Revoke this code'}</button>}
+          </div>}
         </div>
       )} />
     </Shell>

@@ -1,10 +1,11 @@
-import { useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import Public from '../components/Public';
 import { Brand, LangToggle, Audio, Avatar } from '../components/Shell';
 import StoryText from '../components/StoryText';
 import { useT } from '../lib/i18n';
-import { useStore } from '../lib/store';
+import { useStore, setPendingInvite } from '../lib/store';
+import { useAuth, friendlyError } from '../lib/auth';
 import { DEFAULT_PROFILE, SEED_STORIES } from '../mock/data';
 import { storyView, profileView } from '../lib/loc';
 
@@ -19,25 +20,52 @@ const useInviteData = () => {
 };
 
 export function InviteLanding() {
-  const { lang } = useT(); const zh = lang === 'zh'; const nav = useNavigate(); const { host, p, stories } = useInviteData();
-  const [step, setStep] = useState(0); const [name, setName] = useState('');
+  const { lang } = useT(); const zh = lang === 'zh'; const nav = useNavigate(); const { code } = useParams();
+  const { live, state, previewInvite, joinFamily } = useStore(); const auth = useAuth();
+  const demo = useInviteData();
+  const [preview, setPreview] = useState(undefined); // undefined = loading, null = bad code
+  const [busy, setBusy] = useState(false); const [err, setErr] = useState('');
+  useEffect(() => {
+    if (!live) { setPreview({ familyName: '', storytellerName: demo.p.name, storyCount: demo.stories.length, host: demo.host, p: demo.p }); return; }
+    previewInvite(code).then((r) => setPreview(r)).catch(() => setPreview(null));
+  }, [code, live]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Signed in → join now. Not signed in → remember the code, sign up, and the store joins after login.
+  const go = async () => {
+    if (!live) { joinFamily('DEMO-0000'); nav('/home'); return; }
+    if (auth.user) {
+      setErr(''); setBusy(true);
+      try { await joinFamily(code); nav('/home', { replace: true }); } catch (e) { setErr(friendlyError(e, zh)); } finally { setBusy(false); }
+    } else { setPendingInvite(code.toUpperCase()); nav('/signup'); }
+  };
+  const alreadyIn = live && auth.user && state.family && preview && state.family.name === preview.familyName;
+
   return (
     <Public>
       <div className="mx-auto max-w-[520px] px-5 py-12">
         <div className="eyebrow mb-3">{zh ? '你收到一个邀请' : 'You’ve been invited'}</div>
-        <h1 className="h1 mb-3">{zh ? `${host}邀请你来听${p.name}的故事。` : `${host} invited you to ${p.name}'s stories.`}</h1>
-        <p className="text-ink-2 mb-6">{zh ? `目前有 ${stories.length} 个故事，带着原声。你可以读、听，还能帮忙确认几个方言词写得对不对。` : `${stories.length} stories so far, with original audio. You can read, listen, and help confirm a few dialect words.`}</p>
-        <div className="border-t border-b border-line py-4 mb-6 flex items-center gap-4"><Avatar name={p.name} src={p.avatar} size="w-12 h-12 text-[18px]" /><div><div className="font-medium">{p.name}</div><div className="text-[13px] text-ink-2">{p.hometown} · {p.birth}{p.dialects?.length ? ' · ' + p.dialects.join('、') : ''}</div></div></div>
-        {step === 0 ? (
-          <>
-            <label className="label">{zh ? '你的称呼（家人会看到）' : 'Your name (family will see it)'}</label>
-            <input className="input mb-4" value={name} onChange={(e) => setName(e.target.value)} placeholder={zh ? '例如：林姑姑' : 'e.g. Aunt Lin'} />
-            <button className="btn btn-primary w-full btn-lg" disabled={!name.trim()} onClick={() => setStep(1)}>{zh ? '进去看看' : 'Open the stories'}</button>
-            <p className="text-[12.5px] text-ink-3 mt-3">{zh ? '不需要密码。这个链接只对被邀请的人有效，可以随时被收回。' : 'No password needed. The link works only for invitees and can be revoked any time.'}</p>
-          </>
-        ) : (
-          <div className="border-t border-ink pt-6 text-center"><div className="text-[28px] mb-1">✓</div><p className="m-0 mb-4">{zh ? `欢迎，${name}。` : `Welcome, ${name}.`}</p><button className="btn btn-primary w-full" onClick={() => nav('/shared')}>{zh ? '开始读' : 'Start reading'}</button></div>
-        )}
+        {preview === undefined && <p className="text-ink-2">{zh ? '正在查看邀请…' : 'Checking the invitation…'}</p>}
+        {preview === null && (<>
+          <h1 className="h1 mb-3">{zh ? '这个邀请码不能用了' : 'This invite code no longer works'}</h1>
+          <p className="text-ink-2 mb-6">{zh ? '可能已经被人用过，或者被作废了。让邀请你的人再生成一个新码。' : 'It may have been used already or revoked. Ask the person who invited you for a new one.'}</p>
+          <Link to="/" className="link">{zh ? '回到首页' : 'Back to home'}</Link>
+        </>)}
+        {preview && (<>
+          <h1 className="h1 mb-3">{live
+            ? (zh ? `${preview.familyName}邀请你来听${preview.storytellerName || '家里'}的故事。` : `${preview.familyName} invited you to ${preview.storytellerName ? preview.storytellerName + '’s' : 'their'} stories.`)
+            : (zh ? `${preview.host}邀请你来听${preview.p.name}的故事。` : `${preview.host} invited you to ${preview.p.name}'s stories.`)}</h1>
+          <p className="text-ink-2 mb-6">{zh ? `目前有 ${preview.storyCount} 个故事，带着原声。加入后你可以读、听，还能帮忙确认几个方言词写得对不对。` : `${preview.storyCount} stories so far, with original audio. Once you join you can read, listen, and help confirm a few dialect words.`}</p>
+          {preview.storytellerName && <div className="border-t border-b border-line py-4 mb-6 flex items-center gap-4"><Avatar name={preview.storytellerName} src={preview.p?.avatar} size="w-12 h-12 text-[18px]" /><div><div className="font-medium">{preview.storytellerName}</div><div className="text-[13px] text-ink-2">{preview.familyName}</div></div></div>}
+          {alreadyIn ? (
+            <div className="border-t border-ink pt-6 text-center"><p className="m-0 mb-4">{zh ? '你已经在这个家里了。' : 'You’re already in this family.'}</p><button className="btn btn-primary w-full" onClick={() => nav('/home')}>{zh ? '进去看看' : 'Open the stories'}</button></div>
+          ) : (<>
+            <button className="btn btn-primary w-full btn-lg" disabled={busy} onClick={go}>{busy ? '…' : auth.user || !live ? (zh ? '加入这个家' : 'Join this family') : (zh ? '注册并加入' : 'Sign up and join')}</button>
+            {err && <p className="text-rec text-[13.5px] mt-3">{err}</p>}
+            <p className="text-[12.5px] text-ink-3 mt-3">{auth.user || !live
+              ? (zh ? '加入后，家里所有人录的故事你都能看到；家外的人看不到。' : 'Once you join you see every story this family records; nobody outside the family can.')
+              : (zh ? `已有账号？` : 'Already have an account?')} {!auth.user && live && <button className="link" onClick={() => { setPendingInvite(code.toUpperCase()); nav('/login'); }}>{zh ? '登录后加入' : 'Log in to join'}</button>}</p>
+          </>)}
+        </>)}
       </div>
     </Public>
   );

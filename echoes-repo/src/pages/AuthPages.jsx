@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import Shell, { Narrow } from '../components/Shell';
 import { useT } from '../lib/i18n';
-import { useStore } from '../lib/store';
+import { useStore, setPendingInvite } from '../lib/store';
 import { useAuth, friendlyError } from '../lib/auth';
 
 // Sign up · Log in · Forgot password · Reset password · Verify email.
@@ -13,7 +13,8 @@ function Frame({ title, sub, children }) {
 }
 
 export function SignUp() {
-  const { t, lang } = useT(); const zh = lang === 'zh'; const nav = useNavigate(); const auth = useAuth(); const { seedDemo, joinFamily } = useStore();
+  const { t, lang } = useT(); const zh = lang === 'zh'; const nav = useNavigate(); const auth = useAuth(); const { seedDemo, joinFamily, live } = useStore();
+  const [pendingCode, setPendingCode] = useState('');
   const [email, setEmail] = useState(''); const [pw, setPw] = useState(''); const [err, setErr] = useState(''); const [busy, setBusy] = useState(false);
   const [joining, setJoining] = useState(false); const [code, setCode] = useState(''); const [codeErr, setCodeErr] = useState('');
   const go = async () => {
@@ -36,8 +37,11 @@ export function SignUp() {
       <div className="border-t border-line pt-4 mt-6">
         {joining ? (<>
           <div className="font-medium mb-1">{t('family.joinTitle')}</div><p className="text-[13px] text-ink-2 mb-3">{t('family.joinSub')}</p>
-          <div className="flex gap-2"><input className="field flex-1 uppercase tracking-widest text-[16px]" value={code} onChange={(e) => { setCode(e.target.value); setCodeErr(''); }} placeholder={t('family.codePh')} /><button className="btn btn-primary" disabled={!code.trim()} onClick={() => { if (joinFamily(code.trim(), email)) nav('/home'); else setCodeErr(t('family.badCode')); }}>{t('family.joinBtn')}</button></div>
+          <div className="flex gap-2"><input className="field flex-1 uppercase tracking-widest text-[16px]" value={code} onChange={(e) => { setCode(e.target.value); setCodeErr(''); }} placeholder={t('family.codePh')} /><button className="btn btn-primary" disabled={!code.trim()} onClick={async () => {
+            if (live) { setPendingInvite(code.trim().toUpperCase()); setPendingCode(code.trim().toUpperCase()); return; } // joined automatically right after the account is created
+            if (await joinFamily(code.trim(), email)) nav('/home'); else setCodeErr(t('family.badCode')); }}>{t('family.joinBtn')}</button></div>
           {codeErr && <p className="text-rec text-[13px] mt-2 mb-0">{codeErr}</p>}
+          {pendingCode && <p className="text-[13px] text-ink-2 mt-2 mb-0">✓ {zh ? `记住了 ${pendingCode}。创建账号后会自动加入这个家。` : `Got it — ${pendingCode}. You’ll join this family as soon as your account is created.`}</p>}
         </>) : <button className="link-soft text-[14px]" onClick={() => setJoining(true)}>{t('family.join')} →</button>}
       </div>
       <div className="divider my-8">{zh ? '演示' : 'Demo'}</div>
