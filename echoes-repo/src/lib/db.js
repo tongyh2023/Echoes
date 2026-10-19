@@ -108,3 +108,52 @@ export async function previewInvite(code) {
 export async function joinFamily(code) {
   return unwrap(await supabase.rpc('join_family', { invite_code: code })); // returns the family id
 }
+
+// ---------- stories ----------
+
+// "4:12" ↔ 252 seconds. The app shows m:ss; the database keeps an integer.
+const toSeconds = (d) => { if (typeof d === 'number') return d; const m = /^(\d+):(\d{1,2})$/.exec(d || ''); return m ? Number(m[1]) * 60 + Number(m[2]) : null; };
+const toClock = (s) => (s == null ? '' : Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'));
+
+// Database row → the story object every page already uses.
+export const rowToStory = (r) => ({
+  id: r.id, familyId: r.family_id, storytellerId: r.storyteller_id, authorId: r.author_id,
+  title: r.title || '', question: r.question || '', questionId: r.question_id || null,
+  text: r.text || { first: [], raw: [] }, terms: r.terms || [],
+  topics: r.topics || [], people: r.people || [], era: r.era || '', place: r.place || '', lang: r.lang || 'zh',
+  audioPath: r.audio_path || null, duration: toClock(r.duration),
+  published: Boolean(r.published), date: (r.created_at || '').slice(0, 10), updatedAt: r.updated_at,
+  ...(r.extras || {}),           // media, provider, pending…
+});
+
+// Story object → row. Only columns that exist in the table; the rest goes into `extras`.
+const COLUMNS = new Set(['id', 'familyId', 'storytellerId', 'authorId', 'title', 'question', 'questionId', 'text', 'terms', 'topics', 'people', 'era', 'place', 'lang', 'audioPath', 'duration', 'published', 'date', 'updatedAt']);
+const storyToRow = (s) => {
+  const extras = {}; for (const k of Object.keys(s)) if (!COLUMNS.has(k) && k !== 'audioUrl' && k !== 'blob') extras[k] = s[k];
+  return {
+    storyteller_id: s.storytellerId || null, title: s.title || '', question: s.question || '', question_id: s.questionId || null,
+    text: { first: s.text?.first || [], raw: s.text?.raw || [] }, terms: s.terms || [],
+    topics: s.topics || [], people: s.people || [], era: s.era || null, place: s.place || null, lang: s.lang || 'zh',
+    audio_path: s.audioPath || null, duration: toSeconds(s.duration), published: Boolean(s.published), extras,
+  };
+};
+
+export async function loadStories(familyId) {
+  const rows = unwrap(await supabase.from('stories').select('*').eq('family_id', familyId).order('created_at', { ascending: false }));
+  return (rows || []).map(rowToStory);
+}
+
+// Insert a new story. The database assigns the id (uuid) and created_at.
+export async function insertStory(familyId, authorId, s) {
+  const row = unwrap(await supabase.from('stories').insert({ family_id: familyId, author_id: authorId, ...storyToRow(s) }).select().single());
+  return rowToStory(row);
+}
+
+export async function updateStory(id, s) {
+  const row = unwrap(await supabase.from('stories').update(storyToRow(s)).eq('id', id).select().single());
+  return rowToStory(row);
+}
+
+export async function deleteStory(id) {
+  unwrap(await supabase.from('stories').delete().eq('id', id));
+}

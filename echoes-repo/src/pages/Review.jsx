@@ -35,7 +35,13 @@ export default function Review() {
   };
   const polishAll = async () => { setMore(false); setPolishing(true); setHistory((h) => [...h, story.text]); const out = []; for (const p of paras) out.push(await polishParagraph(p, 'narrative')); update({ text: { ...story.text, first: out } }); setPolishing(false); };
   const undo = () => { if (!history.length) return; update({ text: history[history.length - 1] }); setHistory((h) => h.slice(0, -1)); };
-  const save = () => { saveStory({ ...story, pending: false }); if (!id) setDraft(null); nav('/story/' + story.id, { replace: true }); };
+  const [saving, setSaving] = useState(false); const [saveErr, setSaveErr] = useState('');
+  // Save goes to the database; a new story comes back with the id the database assigned.
+  const save = async () => {
+    setSaveErr(''); setSaving(true);
+    try { const saved = await saveStory({ ...story, pending: false }); if (!id) setDraft(null); nav('/story/' + saved.id, { replace: true }); }
+    catch (e) { setSaveErr((zh ? '没保存上：' : 'Couldn’t save: ') + (e?.message || '')); setSaving(false); }
+  };
   const saveDraft = () => { setDraft({ ...story, pending: true }); toast(t('review.draftSaved')); };
   const metaLine = [story.era, story.place, (story.people || []).join('、'), (story.topics || []).join('、')].filter(Boolean).join(' · ');
 
@@ -103,7 +109,8 @@ export default function Review() {
       <div className="sticky bottom-0 mt-12 bg-paper/92 backdrop-blur border-t border-ink py-4 flex items-center gap-6">
         <span className="text-[13.5px] text-ink-2">{pendingN > 0 ? (zh ? `${pendingN} 处注释还没确认，也可以先保存。` : `${pendingN} note(s) still pending — you can save anyway.`) : (zh ? '所有注释已确认。' : 'All notes confirmed.')}</span><span className="flex-1" />
         {!id && <button className="link-soft text-[14px]" onClick={saveDraft}>{t('review.draft')}</button>}
-        <button className="btn btn-primary" onClick={save}>{id ? t('review.saveChanges') : t('review.save')}</button>
+        {saveErr && <span className="text-rec text-[13px]">{saveErr}</span>}
+        <button className="btn btn-primary" disabled={saving} onClick={save}>{saving ? (zh ? '保存中…' : 'Saving…') : id ? t('review.saveChanges') : t('review.save')}</button>
       </div>
     </Shell>
   );

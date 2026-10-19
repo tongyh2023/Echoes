@@ -47,7 +47,7 @@ export function StoreProvider({ children }) {
   const live = hasSupabase && !state.demo;
   useEffect(() => {
     if (!hasSupabase || state.demo) return;
-    if (!state.userId) { setState((s) => ({ ...s, family: null, members: [], inviteCodes: [], storytellers: [], activeId: null, dataReady: true })); return; }
+    if (!state.userId) { setState((s) => ({ ...s, family: null, members: [], inviteCodes: [], storytellers: [], stories: [], activeId: null, dataReady: true })); return; }
     let alive = true;
     (async () => {
       try {
@@ -55,8 +55,8 @@ export function StoreProvider({ children }) {
         const pending = getPendingInvite();
         if (pending) { try { await db.joinFamily(pending); } catch (e) { console.warn('[echoes] pending invite failed', e); } clearPendingInvite(); }
         const family = await db.loadMyFamily();
-        const [tellers, members, inviteCodes] = family ? await Promise.all([db.loadStorytellers(family.id), db.loadMembers(family.id), db.loadInvites(family.id)]) : [[], [], []];
-        if (alive) setState((s) => ({ ...s, family, storytellers: tellers, members, inviteCodes, activeId: tellers.some((t) => t.id === s.activeId) ? s.activeId : (tellers[0]?.id || null), dataReady: true }));
+        const [tellers, members, inviteCodes, stories] = family ? await Promise.all([db.loadStorytellers(family.id), db.loadMembers(family.id), db.loadInvites(family.id), db.loadStories(family.id)]) : [[], [], [], []];
+        if (alive) setState((s) => ({ ...s, family, storytellers: tellers, members, inviteCodes, stories, activeId: tellers.some((t) => t.id === s.activeId) ? s.activeId : (tellers[0]?.id || null), dataReady: true }));
       } catch (e) { console.error('[echoes] load family failed', e); if (alive) setState((s) => ({ ...s, dataReady: true })); }
     })();
     return () => { alive = false; };
@@ -109,8 +109,8 @@ export function StoreProvider({ children }) {
     },
     reloadFamily: async () => {
       const family = await db.loadMyFamily();
-      const [tellers, members, inviteCodes] = family ? await Promise.all([db.loadStorytellers(family.id), db.loadMembers(family.id), db.loadInvites(family.id)]) : [[], [], []];
-      setState((s) => ({ ...s, family, storytellers: tellers, members, inviteCodes, activeId: tellers.some((t) => t.id === s.activeId) ? s.activeId : (tellers[0]?.id || null), dataReady: true }));
+      const [tellers, members, inviteCodes, stories] = family ? await Promise.all([db.loadStorytellers(family.id), db.loadMembers(family.id), db.loadInvites(family.id), db.loadStories(family.id)]) : [[], [], [], []];
+      setState((s) => ({ ...s, family, storytellers: tellers, members, inviteCodes, stories, activeId: tellers.some((t) => t.id === s.activeId) ? s.activeId : (tellers[0]?.id || null), dataReady: true }));
     },
     // Make a fresh invite code for this family (owner or any member).
     createInvite: async () => {
@@ -123,12 +123,26 @@ export function StoreProvider({ children }) {
     removeMember: async (userId) => { if (!live || !state.family) return; await db.removeMember(state.family.id, userId); setState((s) => ({ ...s, members: s.members.filter((m) => m.userId !== userId) })); },
     previewInvite: (code) => (live ? db.previewInvite(code.trim().toUpperCase()) : Promise.resolve(null)),
     setDraft: (draft) => setState((s) => ({ ...s, draft })),
-    saveStory: (story) => setState((s) => {
-      const st = { ...story, storytellerId: story.storytellerId || s.activeId };
-      const exists = s.stories.some((x) => x.id === st.id);
-      return { ...s, draft: null, stories: exists ? s.stories.map((x) => (x.id === st.id ? st : x)) : [st, ...s.stories] };
-    }),
-    updateStory: (id, patch) => setState((s) => ({ ...s, stories: s.stories.map((x) => (x.id === id ? { ...x, ...patch } : x)) })),
+    // Save a story. Real mode: insert (new) or update (existing) in the stories table.
+    // Returns the saved story — for a new one the id is the uuid the database assigned.
+    saveStory: async (story) => {
+      const st = { ...story, storytellerId: story.storytellerId || state.activeId };
+      const exists = state.stories.some((x) => x.id === st.id);
+      if (!live) { setState((s) => ({ ...s, draft: null, stories: exists ? s.stories.map((x) => (x.id === st.id ? st : x)) : [st, ...s.stories] })); return st; }
+      const saved = exists ? await db.updateStory(st.id, st) : await db.insertStory(state.family.id, state.userId, st);
+      // keep the local-only audio preview URL so the just-saved story can still play before Storage lands (step 6)
+      const merged = { ...saved, audioUrl: st.audioUrl || saved.audioUrl };
+      setState((s) => ({ ...s, draft: null, stories: exists ? s.stories.map((x) => (x.id === merged.id ? merged : x)) : [merged, ...s.stories] }));
+      return merged;
+    },
+    updateStory: async (id, patch) => {
+      setState((s) => ({ ...s, stories: s.stories.map((x) => (x.id === id ? { ...x, ...patch } : x)) }));
+      if (!live) return;
+      const cur = state.stories.find((x) => x.id === id); if (!cur) return;
+      try { const saved = await db.updateStory(id, { ...cur, ...patch }); setState((s) => ({ ...s, stories: s.stories.map((x) => (x.id === id ? { ...saved, audioUrl: x.audioUrl } : x)) })); }
+      catch (e) { console.error('[echoes] update story failed', e); }
+    },
+    deleteStory: async (id) => { setState((s) => ({ ...s, stories: s.stories.filter((x) => x.id !== id) })); if (live) await db.deleteStory(id); },
     publish: (story, on) => setState((s) => {
       const stories_ = s.stories.map((x) => (x.id === story.id ? { ...x, published: on } : x));
       let posts = s.posts.filter((p) => p.storyId !== story.id);
