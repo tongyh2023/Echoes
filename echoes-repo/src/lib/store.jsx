@@ -1,5 +1,7 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { DEFAULT_PROFILE, SEED_STORIES, COMMUNITY_POSTS } from '../mock/data';
+import { hasSupabase } from './supabase';
+import * as db from './db';
 
 // App state. In production this is the API layer; here it is React state + localStorage.
 const Ctx = createContext(null);
@@ -10,6 +12,8 @@ const fresh = () => ({
   signedIn: false, email: '', verified: false, plan: 'free',
   userId: null, userName: '',                  // filled from Supabase Auth (see lib/auth.jsx)
   demo: false,                                 // true only when entered through the sample-data shortcut
+  family: null,                                // { id, name, role } from the families table
+  dataReady: !hasSupabase,                     // false until the user's family + storytellers have been loaded
   storytellers: [], activeId: null,           // several storytellers per account
   stories: [], posts: COMMUNITY_POSTS, draft: null,
   invites: [{ name: 'Helen', sub: '孙女', perms: ['read', 'correct', 'add'] }],
@@ -30,24 +34,61 @@ export function StoreProvider({ children }) {
   const profile = state.storytellers.find((s) => s.id === state.activeId) || null;
   const stories = state.stories.filter((s) => !profile || s.storytellerId === profile.id || !s.storytellerId);
 
+  // Real mode: once we know who is signed in, pull their family and storytellers from the database.
+  // Signed out: clear them. (Demo mode keeps the local sample data and never touches the server.)
+  const live = hasSupabase && !state.demo;
+  useEffect(() => {
+    if (!hasSupabase || state.demo) return;
+    if (!state.userId) { setState((s) => ({ ...s, family: null, storytellers: [], activeId: null, dataReady: true })); return; }
+    let alive = true;
+    (async () => {
+      try {
+        const family = await db.loadMyFamily();
+        const tellers = family ? await db.loadStorytellers(family.id) : [];
+        if (alive) setState((s) => ({ ...s, family, storytellers: tellers, activeId: tellers.some((t) => t.id === s.activeId) ? s.activeId : (tellers[0]?.id || null), dataReady: true }));
+      } catch (e) { console.error('[echoes] load family failed', e); if (alive) setState((s) => ({ ...s, dataReady: true })); }
+    })();
+    return () => { alive = false; };
+  }, [state.userId, state.demo]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Family name shown in the header: the real one, or derived from the first storyteller's surname.
+  const familyNameFor = (p) => (p?.name ? p.name.slice(0, 1) + '家' : '我们家');
+
   const api = {
-    state: { ...state, profile, stories },
+    state: { ...state, profile, stories, familyName: state.family?.name || state.familyName },
     allStories: state.stories,
+    live,
     signIn: (email) => setState((s) => ({ ...s, signedIn: true, email: email || s.email || 'you@example.com' })),
     verify: () => setState((s) => ({ ...s, verified: true })),
     signOut: () => setState((s) => ({ ...s, signedIn: false, demo: false, userId: null, userName: '' })),
     // Called by AuthProvider whenever Supabase reports who is signed in (null = nobody).
     setAuthUser: (u) => setState((s) => (u
-      ? { ...s, signedIn: true, demo: false, userId: u.id, email: u.email, verified: u.verified, userName: u.name || s.userName }
+      ? { ...s, signedIn: true, demo: false, userId: u.id, email: u.email, verified: u.verified, userName: u.name || s.userName, dataReady: s.userId === u.id ? s.dataReady : false }
       : { ...s, signedIn: false, userId: null, userName: '' })),
-    addStoryteller: (p) => setState((s) => { const id = p.id || 'st-' + Date.now(); return { ...s, storytellers: [...s.storytellers.filter((x) => x.id !== id), { ...p, id }], activeId: id }; }),
-    updateStoryteller: (id, patch) => setState((s) => ({ ...s, storytellers: s.storytellers.map((x) => (x.id === id ? { ...x, ...patch } : x)) })),
+    // Add a storyteller. Real mode: create the family first if this account has none
+    // (create_family makes the caller its owner), then insert the storyteller row.
+    addStoryteller: async (p) => {
+      if (!live) { setState((s) => { const id = p.id || 'st-' + Date.now(); return { ...s, storytellers: [...s.storytellers.filter((x) => x.id !== id), { ...p, id }], activeId: id }; }); return; }
+      let family = state.family;
+      if (!family) { family = await db.createFamily(familyNameFor(p)); }
+      const row = await db.addStoryteller(family.id, p);
+      setState((s) => ({ ...s, family, storytellers: [...s.storytellers.filter((x) => x.id !== row.id), row], activeId: row.id }));
+    },
+    updateStoryteller: async (id, patch) => {
+      if (!live) { setState((s) => ({ ...s, storytellers: s.storytellers.map((x) => (x.id === id ? { ...x, ...patch } : x)) })); return; }
+      const cur = state.storytellers.find((x) => x.id === id); if (!cur) return;
+      const row = await db.updateStoryteller(id, { ...cur, ...patch });
+      setState((s) => ({ ...s, storytellers: s.storytellers.map((x) => (x.id === id ? row : x)) }));
+    },
     setActive: (id) => setState((s) => ({ ...s, activeId: id })),
     setProfile: (p) => api.addStoryteller(p),
     seedDemo: () => setState((s) => ({ ...s, signedIn: true, demo: true, verified: true, email: 'shaojing@example.com', storytellers: [{ ...DEFAULT_PROFILE, id: 'st-demo' }], activeId: 'st-demo', stories: SEED_STORIES.map((x) => ({ ...x, storytellerId: 'st-demo' })) })),
     reset: () => { try { localStorage.removeItem(KEY); } catch {} setState(fresh()); },
     setPlan: (plan) => setState((s) => ({ ...s, plan })),
-    setFamilyName: (familyName) => setState((s) => ({ ...s, familyName })),
+    setFamilyName: async (familyName) => {
+      if (live && state.family) { await db.renameFamily(state.family.id, familyName); setState((s) => ({ ...s, family: { ...s.family, name: familyName } })); return; }
+      setState((s) => ({ ...s, familyName }));
+    },
     joinFamily: (code, name) => { if (!/^[A-Z]{3,6}-\d{4}$/i.test(code)) return false; api.seedDemo(); setState((s) => ({ ...s, email: name || s.email, invites: [...s.invites, { name: name || 'You', sub: 'member', perms: ['read', 'correct', 'add'], me: true }] })); return true; },
     setDraft: (draft) => setState((s) => ({ ...s, draft })),
     saveStory: (story) => setState((s) => {

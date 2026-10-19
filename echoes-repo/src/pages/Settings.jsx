@@ -28,7 +28,7 @@ export default function Settings() {
               </div>
             ); })}
           </div>
-          <button className="link-soft text-[14px]" onClick={() => { if (state.plan === 'free' && state.storytellers.length >= 1) nav('/upgrade?why=storyteller'); else nav('/mode'); }}>+ {zh ? '再加一位讲述者' : 'Add a storyteller'}</button>
+          <button className="link-soft text-[14px]" onClick={() => { if (state.plan === 'free' && state.storytellers.length >= 1) nav('/upgrade?why=storyteller'); else nav('/mode?add=1'); }}>+ {zh ? '再加一位讲述者' : 'Add a storyteller'}</button>
           {state.plan === 'free' && <p className="text-[12.5px] text-ink-3 mt-2">{zh ? '免费版一位讲述者；家庭版不限。' : 'Free: one storyteller. Family: unlimited.'}</p>}
         </Section>
 

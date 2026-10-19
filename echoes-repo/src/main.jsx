@@ -1,6 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { BrowserRouter, MemoryRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, MemoryRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import './index.css';
 import { I18nProvider } from './lib/i18n';
 import { StoreProvider, useStore } from './lib/store';
@@ -33,15 +33,20 @@ function Guard({ children }) {
   if (!auth.ready) return null;
   const signedIn = auth.hasSupabase ? (Boolean(auth.user) || state.demo) : state.signedIn;
   if (!signedIn) return <Navigate to="/login" replace />;
+  if (!state.dataReady) return null; // family + storytellers still loading from the database
   return state.profile ? children : <Navigate to="/mode" replace />;
 }
 
 // Onboarding pages need an account but not yet a storyteller.
 function NeedsAccount({ children }) {
-  const { state } = useStore(); const auth = useAuth();
+  const { state } = useStore(); const auth = useAuth(); const loc = useLocation();
   if (!auth.ready) return null;
   const signedIn = auth.hasSupabase ? (Boolean(auth.user) || state.demo) : state.signedIn;
-  return signedIn ? children : <Navigate to="/login" replace />;
+  if (!signedIn) return <Navigate to="/login" replace />;
+  if (!state.dataReady) return null;
+  // Already set up (has a storyteller) and not editing → skip onboarding, go home.
+  if (state.profile && !/edit=|add=/.test(loc.search)) return <Navigate to="/home" replace />;
+  return children;
 }
 
 function App() {

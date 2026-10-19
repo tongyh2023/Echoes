@@ -6,9 +6,9 @@ import { useStore } from '../lib/store';
 import { DEFAULT_PROFILE } from '../mock/data';
 
 export function Mode() {
-  const { t, lang } = useT(); const zh = lang === 'zh'; const nav = useNavigate();
+  const { t, lang } = useT(); const zh = lang === 'zh'; const nav = useNavigate(); const adding = useLocation().search.includes('add=');
   const Card = ({ title, sub, mode, icon }) => (
-    <button onClick={() => nav('/profile?mode=' + mode)} className="row-link grid-cols-[48px_1fr_auto] items-center gap-5">
+    <button onClick={() => nav('/profile?mode=' + mode + (adding ? '&add=1' : ''))} className="row-link grid-cols-[48px_1fr_auto] items-center gap-5">
       <span className="w-12 h-12 avatar text-[20px]">{icon}</span>
       <span><span className="ttl">{title}</span><span className="block text-[14px] text-ink-2 mt-1">{sub}</span></span>
       <span className="link text-[13.5px]">{zh ? '选这个' : 'Choose'} →</span>
@@ -29,7 +29,7 @@ export function Mode() {
 }
 
 export function Profile() {
-  const { t } = useT(); const nav = useNavigate(); const { setProfile, state, updateStoryteller } = useStore();
+  const { t, lang } = useT(); const nav = useNavigate(); const { setProfile, state, updateStoryteller } = useStore();
   const loc = useLocation(); const qs = new URLSearchParams(loc.search); const mode = qs.get('mode') || 'other'; const editId = qs.get('edit');
   const existing = editId ? state.storytellers.find((s) => s.id === editId) : null;
   const [f, setF] = useState(existing ? { ...existing, places: existing.places?.length ? existing.places : [''] } : { ...DEFAULT_PROFILE, mode, name: '', relation: '', birth: '', hometown: '', livesIn: '', places: [''], dialects: [] });
@@ -39,6 +39,14 @@ export function Profile() {
   const dialects = DIALECTS[f.lang] || [];
   const fill = () => setF({ ...DEFAULT_PROFILE, mode, name: self ? '童明德' : DEFAULT_PROFILE.name, relation: self ? '' : DEFAULT_PROFILE.relation });
   const canDone = f.name && f.hometown;
+  const [busy, setBusy] = useState(false); const [err, setErr] = useState('');
+  // Save goes to the database in real mode: creates the family on first use, then the storyteller.
+  const save = async (v, back) => {
+    setErr(''); setBusy(true);
+    try { if (existing) { await updateStoryteller(existing.id, v); nav(-1); } else { await setProfile(v); nav(back || '/home'); } }
+    catch (e) { setErr((lang === 'zh' ? '没保存上：' : 'Couldn’t save: ') + (e?.message || '')); }
+    finally { setBusy(false); }
+  };
   return (
     <Shell nav={false}>
       <Narrow className="pt-6">
@@ -83,10 +91,11 @@ export function Profile() {
         </div>
 
         <div className="flex items-center gap-7 mt-10">
-          <button className="btn btn-primary btn-lg" disabled={!canDone} onClick={() => { const v = { ...f, places: f.places.filter(Boolean) }; if (existing) { updateStoryteller(existing.id, v); nav(-1); } else { setProfile(v); nav('/home'); } }}>{existing ? t('profile.save') : t('profile.done')}</button>
-          {!existing && <button className="link-soft text-[14px]" onClick={() => { setProfile({ ...DEFAULT_PROFILE, mode }); nav('/home'); }}>{t('profile.skip')}</button>}
+          <button className="btn btn-primary btn-lg" disabled={!canDone || busy} onClick={() => save({ ...f, places: f.places.filter(Boolean) })}>{busy ? (lang === 'zh' ? '保存中…' : 'Saving…') : existing ? t('profile.save') : t('profile.done')}</button>
+          {!existing && <button className="link-soft text-[14px]" disabled={busy} onClick={() => save({ ...DEFAULT_PROFILE, mode })}>{t('profile.skip')}</button>}
           {existing && <button className="link-soft text-[14px]" onClick={() => nav(-1)}>{t('common.cancel')}</button>}
         </div>
+        {err && <p className="text-rec text-[13.5px] mt-3">{err}</p>}
         <div className="mt-8"><Note>{t('profile.note')}</Note></div>
       </Narrow>
     </Shell>
