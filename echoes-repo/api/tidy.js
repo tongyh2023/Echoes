@@ -8,7 +8,11 @@
 
 export const config = { api: { bodyParser: { sizeLimit: '4mb' } } };
 
-const DASH = 'https://dashscope-intl.aliyuncs.com';
+// Model Studio (Singapore) keys are bound to a workspace, and each workspace has its own base URL:
+//   https://<workspace-id>.ap-southeast-1.maas.aliyuncs.com
+// The workspace id is shown in the console's API code sample / Workspace Management page (it is an identifier, not a secret).
+// Override with the DASHSCOPE_BASE_URL env var if the workspace ever changes.
+const DASH = (process.env.DASHSCOPE_BASE_URL || 'https://ws-362kz2csbr5yghzo.ap-southeast-1.maas.aliyuncs.com').replace(/\/$/, '');
 const SYSTEM = `你是一位帮助家庭整理长辈口述历史的编辑。你会收到一段长辈回答某个问题的语音转写稿（可能有口头禅、重复、方言词）。
 请做四件事，并只输出 JSON：
 1. "title"：8–14 个字的故事标题，像书里的小节名，不要用"关于""我的"开头。
