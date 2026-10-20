@@ -37,9 +37,9 @@ export function SignUp() {
       <div className="border-t border-line pt-4 mt-6">
         {joining ? (<>
           <div className="font-medium mb-1">{t('family.joinTitle')}</div><p className="text-[13px] text-ink-2 mb-3">{t('family.joinSub')}</p>
-          <div className="flex gap-2"><input className="field flex-1 uppercase tracking-widest text-[16px]" value={code} onChange={(e) => { setCode(e.target.value); setCodeErr(''); }} placeholder={t('family.codePh')} /><button className="btn btn-primary" disabled={!code.trim()} onClick={async () => {
+          <div className="flex gap-2"><input className="field flex-1 uppercase tracking-widest text-[16px]" value={code} onChange={(e) => { setCode(e.target.value); setCodeErr(''); if (pendingCode && e.target.value.trim().toUpperCase() !== pendingCode) setPendingCode(''); }} placeholder={t('family.codePh')} /><button className="btn btn-primary" disabled={!code.trim() || (live && pendingCode === code.trim().toUpperCase())} onClick={async () => {
             if (live) { setPendingInvite(code.trim().toUpperCase()); setPendingCode(code.trim().toUpperCase()); return; } // joined automatically right after the account is created
-            if (await joinFamily(code.trim(), email)) nav('/home'); else setCodeErr(t('family.badCode')); }}>{t('family.joinBtn')}</button></div>
+            if (await joinFamily(code.trim(), email)) nav('/home'); else setCodeErr(t('family.badCode')); }}>{live && pendingCode && pendingCode === code.trim().toUpperCase() ? '✓' : t('family.joinBtn')}</button></div>
           {codeErr && <p className="text-rec text-[13px] mt-2 mb-0">{codeErr}</p>}
           {pendingCode && <p className="text-[13px] text-ink-2 mt-2 mb-0">✓ {zh ? `记住了 ${pendingCode}。创建账号后会自动加入这个家。` : `Got it — ${pendingCode}. You’ll join this family as soon as your account is created.`}</p>}
         </>) : <button className="link-soft text-[14px]" onClick={() => setJoining(true)}>{t('family.join')} →</button>}

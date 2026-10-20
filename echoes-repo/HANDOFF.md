@@ -129,3 +129,8 @@ Invite   { name, sub, perms:['read'|'correct'|'add'] }
 - Front end calls it automatically whenever there is a real recording (`src/mock/data.js → tidyForReal`). Demo takes (no audio) still use the sample story. `vite preview` / local file has no `/api`, so test on the Vercel URL (or `npx vercel dev`).
 - Body limit 4 MB ≈ 6–8 minutes of browser audio. Longer recordings: move upload to Supabase Storage (Session 2) and pass a URL instead.
 - Several takes are concatenated into one Blob before tidy-up (same mime type), in order.
+
+## UI / UX to revisit before launch (collected during real-site testing, 2026-10-20)
+
+- Sign-up page: the "Have an invite code? Join a family" block is too small and easy to miss. Give it the same weight as the main form (or its own step), and make the remembered-code state obvious.
+- (add items here as testing continues)

@@ -12,7 +12,9 @@ const unwrap = ({ data, error }) => { if (error) throw error; return data; };
 
 // The family the signed-in user belongs to (one per account in v1), or null.
 export async function loadMyFamily() {
-  const rows = unwrap(await supabase.from('family_members').select('role, families(id, name, created_by, created_at)').limit(1));
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+  const rows = unwrap(await supabase.from('family_members').select('role, families(id, name, created_by, created_at)').eq('user_id', user.id).limit(1));
   const m = rows?.[0];
   return m?.families ? { id: m.families.id, name: m.families.name, role: m.role } : null;
 }
