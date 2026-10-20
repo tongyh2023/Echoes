@@ -3,9 +3,19 @@ import { DEFAULT_PROFILE, SEED_STORIES, COMMUNITY_POSTS } from '../mock/data';
 import { hasSupabase } from './supabase';
 import * as db from './db';
 
-// App state. In production this is the API layer; here it is React state + localStorage.
+// App state. Real mode: everything comes from Supabase (see lib/db.js) and lives in React state only.
+// Preview mode (no Supabase configured): in-memory sample data so the single-file build still runs.
 const Ctx = createContext(null);
-const KEY = 'lifestory-state-v3';
+// The one thing kept in the browser between page loads: the story being tidied/reviewed (text only),
+// so an accidental refresh on the review page doesn't lose the AI's work. sessionStorage dies with the tab.
+const DRAFT = 'echoes-draft';
+const loadDraft = () => { try { const d = JSON.parse(sessionStorage.getItem(DRAFT)); return d && typeof d === 'object' ? d : null; } catch { return null; } };
+// Which storyteller is selected (a per-tab convenience, also sessionStorage).
+const ACTIVE = 'echoes-active';
+const loadActive = () => { try { return sessionStorage.getItem(ACTIVE); } catch { return null; } };
+// Keep the current selection if it still exists (or the one remembered in this tab), else the first storyteller.
+const pickActive = (tellers, current) => { const want = current || loadActive(); return tellers.some((t) => t.id === want) ? want : (tellers[0]?.id || null); };
+const storeDraft = (d) => { try { if (d) sessionStorage.setItem(DRAFT, JSON.stringify({ ...d, blob: false })); else sessionStorage.removeItem(DRAFT); } catch {} };
 export const FREE_LIMIT = 10;
 
 const fresh = () => ({
@@ -16,8 +26,8 @@ const fresh = () => ({
   members: [],                                 // [{ userId, role, name, avatar }] from family_members + profiles
   inviteCodes: [],                             // unused codes for this family (newest first)
   dataReady: !hasSupabase,                     // false until the user's family + storytellers have been loaded
-  storytellers: [], activeId: null,           // several storytellers per account
-  stories: [], posts: COMMUNITY_POSTS, draft: null,
+  storytellers: [], activeId: loadActive(),   // several storytellers per account
+  stories: [], posts: hasSupabase ? [] : COMMUNITY_POSTS, draft: loadDraft(),
   invites: [{ name: 'Helen', sub: '孙女', perms: ['read', 'correct', 'add'] }],
   familyName: '',                              // '' → derived from the first storyteller's surname
   inviteCode: 'TONG-4821',
@@ -46,10 +56,9 @@ async function loadFamilyData(family) {
 }
 
 export function StoreProvider({ children }) {
-  // Seed posts carry non-serialisable/static fields (cover image URLs, body text). Re-apply them over whatever is cached so a stale cache never hides new seed content.
-  const hydrate = (s) => { const seed = Object.fromEntries(COMMUNITY_POSTS.map((p) => [p.id, p])); const known = new Set((s.posts || []).map((p) => p.id)); const posts = (s.posts || []).map((p) => (seed[p.id] ? { ...seed[p.id], ...p, image: seed[p.id].image, body: seed[p.id].body } : p)); COMMUNITY_POSTS.forEach((p) => { if (!known.has(p.id)) posts.push(p); }); const kept = posts.filter((p) => (p.mine || seed[p.id]) && ['zh', 'en'].includes(p.lang)); return { ...fresh(), ...s, posts: kept, dataReady: !hasSupabase }; }; // dataReady is never trusted from the cache: real mode must reload from the database
-  const [state, setState] = useState(() => { try { const s = JSON.parse(localStorage.getItem(KEY)); if (s) return hydrate(s); } catch {} return fresh(); });
-  useEffect(() => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {} }, [state]);
+  const [state, setState] = useState(fresh);
+  useEffect(() => { storeDraft(state.draft); }, [state.draft]);
+  useEffect(() => { try { if (state.activeId) sessionStorage.setItem(ACTIVE, state.activeId); } catch {} }, [state.activeId]);
 
   const profile = state.storytellers.find((s) => s.id === state.activeId) || null;
   const stories = state.stories.filter((s) => !profile || s.storytellerId === profile.id || !s.storytellerId);
@@ -69,7 +78,7 @@ export function StoreProvider({ children }) {
         const family = await db.loadMyFamily();
         const data = await loadFamilyData(family);
         const posts = await db.loadFeed(family?.id).catch((e) => { console.warn('[echoes] feed failed', e?.message || e); return []; });
-        if (alive) setState((s) => ({ ...s, family, ...data, posts, activeId: data.storytellers.some((t) => t.id === s.activeId) ? s.activeId : (data.storytellers[0]?.id || null), dataReady: true }));
+        if (alive) setState((s) => ({ ...s, family, ...data, posts, activeId: pickActive(data.storytellers, s.activeId), dataReady: true }));
       } catch (e) { console.error('[echoes] load family failed', e); if (alive) setState((s) => ({ ...s, dataReady: true })); }
     })();
     return () => { alive = false; };
@@ -106,8 +115,25 @@ export function StoreProvider({ children }) {
     },
     setActive: (id) => setState((s) => ({ ...s, activeId: id })),
     setProfile: (p) => api.addStoryteller(p),
-    seedDemo: () => setState((s) => ({ ...s, signedIn: true, demo: true, verified: true, email: 'shaojing@example.com', storytellers: [{ ...DEFAULT_PROFILE, id: 'st-demo' }], activeId: 'st-demo', stories: SEED_STORIES.map((x) => ({ ...x, storytellerId: 'st-demo' })) })),
-    reset: () => { try { localStorage.removeItem(KEY); } catch {} setState(fresh()); },
+    // Sample data. Preview mode: fill memory. Real mode: insert the sample storyteller and stories
+    // into the signed-in family through the database, flagged demo=true so they can be removed later.
+    seedDemo: async () => {
+      if (!live) { setState((s) => ({ ...s, signedIn: true, demo: true, verified: true, email: 'shaojing@example.com', storytellers: [{ ...DEFAULT_PROFILE, id: 'st-demo' }], activeId: 'st-demo', stories: SEED_STORIES.map((x) => ({ ...x, storytellerId: 'st-demo' })) })); return; }
+      let family = state.family; if (!family) family = await db.createFamily(DEFAULT_PROFILE.name.slice(0, 1) + '家');
+      let teller = state.storytellers.find((t) => t.demo) || null;
+      if (!teller) teller = await db.addStoryteller(family.id, { ...DEFAULT_PROFILE, demo: true });
+      const rows = [];
+      for (const x of SEED_STORIES) rows.push(await db.insertStory(family.id, state.userId, { ...x, id: undefined, storytellerId: teller.id, demo: true }));
+      await api.reloadFamily();
+      setState((s) => ({ ...s, activeId: teller.id }));
+    },
+    // Remove the sample data again (real mode) or wipe memory (preview mode).
+    reset: async () => {
+      if (!live) { setState(fresh()); return; }
+      for (const st of state.stories.filter((x) => x.demo)) await db.deleteStory(st.id);
+      const teller = state.storytellers.find((t) => t.demo); if (teller) await db.deleteStoryteller(teller.id);
+      await api.reloadFamily();
+    },
     setPlan: (plan) => setState((s) => ({ ...s, plan })),
     setFamilyName: async (familyName) => {
       if (live && state.family) { await db.renameFamily(state.family.id, familyName); setState((s) => ({ ...s, family: { ...s.family, name: familyName } })); return; }
@@ -123,7 +149,7 @@ export function StoreProvider({ children }) {
     reloadFamily: async () => {
       const family = await db.loadMyFamily();
       const data = await loadFamilyData(family);
-      setState((s) => ({ ...s, family, ...data, activeId: data.storytellers.some((t) => t.id === s.activeId) ? s.activeId : (data.storytellers[0]?.id || null), dataReady: true }));
+      setState((s) => ({ ...s, family, ...data, activeId: pickActive(data.storytellers, s.activeId), dataReady: true }));
     },
     // Make a fresh invite code for this family (owner or any member).
     createInvite: async () => {
@@ -219,7 +245,8 @@ export function StoreProvider({ children }) {
     },
     addInvite: (inv) => setState((s) => ({ ...s, invites: [...s.invites, inv] })),
     removeInvite: (i) => setState((s) => ({ ...s, invites: s.invites.filter((_, k) => k !== i) })),
-    deleteAccount: () => { try { localStorage.removeItem(KEY); } catch {} setState({ ...fresh(), deleted: true }); },
+    // Account deletion itself is a server-side job (later); here we leave the family and clear the session.
+    deleteAccount: async () => { if (live && state.family && state.userId) { try { await db.removeMember(state.family.id, state.userId); } catch {} } setState({ ...fresh(), draft: null, deleted: true }); },
   };
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>;
 }

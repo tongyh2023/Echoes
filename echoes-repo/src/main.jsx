@@ -33,7 +33,9 @@ function Guard({ children }) {
   if (!auth.ready) return null;
   const signedIn = auth.hasSupabase ? (Boolean(auth.user) || state.demo) : state.signedIn;
   if (!signedIn) return <Navigate to="/login" replace />;
-  if (!state.dataReady) return null; // family + storytellers still loading from the database
+  // Supabase knows the user but the store hasn't mirrored them yet, or the family is still loading → wait.
+  if (auth.user && state.userId !== auth.user.id) return null;
+  if (!state.dataReady) return null;
   return state.profile ? children : <Navigate to="/mode" replace />;
 }
 
@@ -43,6 +45,7 @@ function NeedsAccount({ children }) {
   if (!auth.ready) return null;
   const signedIn = auth.hasSupabase ? (Boolean(auth.user) || state.demo) : state.signedIn;
   if (!signedIn) return <Navigate to="/login" replace />;
+  if (auth.user && state.userId !== auth.user.id) return null;
   if (!state.dataReady) return null;
   // Already set up (has a storyteller) and not editing → skip onboarding, go home.
   if (state.profile && !/edit=|add=/.test(loc.search)) return <Navigate to="/home" replace />;

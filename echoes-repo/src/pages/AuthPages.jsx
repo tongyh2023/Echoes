@@ -45,8 +45,10 @@ export function SignUp() {
         </>) : <button className="link-soft text-[14px]" onClick={() => setJoining(true)}>{t('family.join')} →</button>}
       </div>
       <div className="divider my-8">{zh ? '演示' : 'Demo'}</div>
-      <button className="btn w-full" onClick={() => { seedDemo(); nav('/home'); }}>{zh ? '用示例数据直接进入（童爷爷 · 3 个故事）' : 'Enter with sample data (Grandpa Tong · 3 stories)'}</button>
-      <p className="text-[12.5px] text-ink-3 mt-3">{zh ? '给审核用的快捷入口；正式版本没有这个按钮。' : 'Reviewer shortcut; not in the real product.'}</p>
+      {live
+        ? <p className="text-[12.5px] text-ink-3">{zh ? '想先看看效果？创建账号后，在「设置」里可以一键导入童爷爷的 3 个示例故事，随时删除。' : 'Want to see it filled in? After creating an account, import Grandpa Tong’s 3 sample stories from Settings — removable any time.'}</p>
+        : <><button className="btn w-full" onClick={() => { seedDemo(); nav('/home'); }}>{zh ? '用示例数据直接进入（童爷爷 · 3 个故事）' : 'Enter with sample data (Grandpa Tong · 3 stories)'}</button>
+          <p className="text-[12.5px] text-ink-3 mt-3">{zh ? '给审核用的快捷入口；正式版本没有这个按钮。' : 'Reviewer shortcut; not in the real product.'}</p></>}
     </Frame>
   );
 }

@@ -7,6 +7,8 @@
 export { QUESTIONS, CATEGORIES, CHAPTERS } from './questions';
 import { QUESTIONS } from './questions';
 
+// Sample data. Used only (a) by the single-file preview with no database and (b) by
+// Settings → “Import sample stories”, which writes these into the real database flagged demo=true.
 export const DEFAULT_PROFILE = {
   mode: 'other', // 'self' | 'other'
   name: '童爷爷', nameEn: 'Grandpa Tong', relation: '儿子', relationEn: 'son', birth: '1936', hometown: '江西 南昌', hometownEn: 'Nanchang, Jiangxi', livesIn: '四川 成都', livesInEn: 'Chengdu, Sichuan',

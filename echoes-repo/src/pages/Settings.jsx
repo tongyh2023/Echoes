@@ -8,7 +8,7 @@ import { profileView } from '../lib/loc';
 
 export default function Settings() {
   const { lang } = useT(); const zh = lang === 'zh'; const nav = useNavigate();
-  const { state, allStories, setActive, setPlan, deleteAccount, updateStoryteller, reset, setMeAvatar } = useStore(); const auth = useAuth();
+  const { state, allStories, setActive, setPlan, deleteAccount, updateStoryteller, reset, seedDemo, setMeAvatar, live } = useStore(); const auth = useAuth(); const [demoBusy, setDemoBusy] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false); const [exported, setExported] = useState(false);
   const used = allStories.length;
   const Section = ({ title, children }) => <section className="border-t border-ink pt-4 mb-12"><h2 className="h2 mb-5">{title}</h2>{children}</section>;
@@ -59,7 +59,13 @@ export default function Settings() {
         </Section>
 
         {/* DEV ONLY — remove before launch. Clears all demo data in this browser. */}
+        {live ? (
+          <p className="text-[12px] text-ink-3 mt-8 text-center">{zh ? '示例数据' : 'Sample data'} · {allStories.some((x) => x.demo)
+            ? <button className="underline cursor-pointer" disabled={demoBusy} onClick={async () => { setDemoBusy(true); try { await reset(); } finally { setDemoBusy(false); } }}>{demoBusy ? '…' : (zh ? '删除示例故事' : 'Remove sample stories')}</button>
+            : <button className="underline cursor-pointer" disabled={demoBusy} onClick={async () => { setDemoBusy(true); try { await seedDemo(); nav('/home'); } finally { setDemoBusy(false); } }}>{demoBusy ? '…' : (zh ? '导入示例故事（童爷爷 · 3 个）' : 'Import sample stories (Grandpa Tong · 3)')}</button>}</p>
+        ) : (
         <p className="text-[12px] text-ink-3 mt-8 text-center">{zh ? '演示环境' : 'Demo environment'} · <button className="underline cursor-pointer" onClick={() => { reset(); nav('/'); }}>{zh ? '清空演示数据（开发用）' : 'Clear demo data (dev)'}</button></p>
+        )}
       </Narrow>
     </Shell>
   );

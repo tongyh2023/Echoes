@@ -267,3 +267,7 @@ export async function addComment(storyId, userId, text) {
 export async function setPublished(storyId, on) {
   unwrap(await supabase.from('stories').update({ published: on }).eq('id', storyId));
 }
+
+export async function deleteStoryteller(id) {
+  unwrap(await supabase.from('storytellers').delete().eq('id', id));
+}
