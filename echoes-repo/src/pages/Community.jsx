@@ -23,7 +23,7 @@ export default function Community() {
 
   const Actions = ({ po }) => (
     <div className="flex items-center gap-6 text-[13.5px] text-ink-2 mt-4">
-      <button className={'cursor-pointer hover:text-ink ' + (po.liked ? 'text-rec' : '')} onClick={() => likePost(po.id, !po.liked)}>{po.liked ? '♥' : '♡'} {po.likes}</button>
+      <button className={'cursor-pointer hover:text-ink ' + (po.liked ? 'text-rec' : '')} onClick={() => likePost(po.id, !po.liked).catch(() => nav('/login'))}>{po.liked ? '♥' : '♡'} {po.likes}</button>
       <button className="cursor-pointer hover:text-ink" onClick={() => { const next = open === po.id ? null : po.id; setOpen(next); if (next && live && !po.comments.length) loadComments(po.id); }}>{t('community.comment')} {po.commentCount ?? po.comments.length}</button>
       <button className={'cursor-pointer hover:text-ink ' + (po.reposted ? 'text-accent' : '')} onClick={() => updatePost(po.id, (x) => ({ ...x, reposted: !x.reposted, reposts: x.reposts + (x.reposted ? -1 : 1) }))}>↻ {po.reposts}</button>
       <span className="flex-1" />
@@ -33,7 +33,7 @@ export default function Community() {
   const Comments = ({ po }) => open === po.id && (
     <div className="mt-4 border-l-2 border-line pl-5 grid gap-3">
       {po.comments.map((c, i) => <div key={i} className="flex gap-3 text-[14px] items-baseline"><Avatar name={c.who} size="w-6 h-6 text-[10px]" /><span><b className="font-medium">{c.who}</b> <span className="text-ink-2">{c.text}</span></span></div>)}
-      <div className="flex gap-4 items-end"><input className="field flex-1 text-[14.5px]" value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={t('community.write')} onKeyDown={(e) => e.key === 'Enter' && draft.trim() && (commentPost(po.id, me, draft.trim()), setDraft(''))} /><button className="btn btn-sm" disabled={!draft.trim()} onClick={() => { commentPost(po.id, me, draft.trim()); setDraft(''); }}>{t('community.post')}</button></div>
+      <div className="flex gap-4 items-end"><input className="field flex-1 text-[14.5px]" value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={t('community.write')} onKeyDown={(e) => e.key === 'Enter' && draft.trim() && (commentPost(po.id, me, draft.trim()).catch(() => nav('/login')), setDraft(''))} /><button className="btn btn-sm" disabled={!draft.trim()} onClick={() => { commentPost(po.id, me, draft.trim()).catch(() => nav('/login')); setDraft(''); }}>{t('community.post')}</button></div>
     </div>
   );
   const Byline = ({ po }) => (

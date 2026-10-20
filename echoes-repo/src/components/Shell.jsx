@@ -61,6 +61,7 @@ export default function Shell({ children, nav = true }) {
           <div className="flex-1" />
           {show && <button className="btn btn-accent btn-sm hidden sm:inline-flex" onClick={() => nav_('/pick')}>{t('nav.record')}</button>}
           <LangToggle />
+          {!p && !state.signedIn && <button className="link-soft text-[13.5px]" onClick={() => nav_('/login')}>{t('auth.login')}</button>}
           {p && <button onClick={() => nav_('/settings')} title={t('nav.settings')} className="cursor-pointer"><Avatar name={state.email ? state.email.split('@')[0] : '我'} src={state.meAvatar} size="w-8 h-8 text-[13px]" /></button>}
         </div>
         {show && (

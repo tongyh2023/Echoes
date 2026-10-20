@@ -26,6 +26,7 @@ const fresh = () => ({
   members: [],                                 // [{ userId, role, name, avatar }] from family_members + profiles
   inviteCodes: [],                             // unused codes for this family (newest first)
   dataReady: !hasSupabase,                     // false until the user's family + storytellers have been loaded
+  feedReady: !hasSupabase,                     // false until the community feed has been fetched once
   storytellers: [], activeId: loadActive(),   // several storytellers per account
   stories: [], posts: hasSupabase ? [] : COMMUNITY_POSTS, draft: loadDraft(),
   invites: [{ name: 'Helen', sub: '孙女', perms: ['read', 'correct', 'add'] }],
@@ -68,7 +69,12 @@ export function StoreProvider({ children }) {
   const live = hasSupabase && !state.demo;
   useEffect(() => {
     if (!hasSupabase || state.demo) return;
-    if (!state.userId) { setState((s) => ({ ...s, family: null, members: [], inviteCodes: [], storytellers: [], stories: [], customQuestions: [], reactions: {}, activeId: null, dataReady: true })); return; }
+    if (!state.userId) {
+      setState((s) => ({ ...s, family: null, members: [], inviteCodes: [], storytellers: [], stories: [], customQuestions: [], reactions: {}, activeId: null, dataReady: true }));
+      // Visitors can still read the community: published stories are public by rule.
+      let alive = true; db.loadFeed(null).then((posts) => alive && setState((s) => (s.userId ? s : { ...s, posts, feedReady: true }))).catch(() => alive && setState((s) => ({ ...s, feedReady: true })));
+      return () => { alive = false; };
+    }
     let alive = true;
     (async () => {
       try {
@@ -78,7 +84,7 @@ export function StoreProvider({ children }) {
         const family = await db.loadMyFamily();
         const data = await loadFamilyData(family);
         const posts = await db.loadFeed(family?.id).catch((e) => { console.warn('[echoes] feed failed', e?.message || e); return []; });
-        if (alive) setState((s) => ({ ...s, family, ...data, posts, activeId: pickActive(data.storytellers, s.activeId), dataReady: true }));
+        if (alive) setState((s) => ({ ...s, family, ...data, posts, feedReady: true, activeId: pickActive(data.storytellers, s.activeId), dataReady: true }));
       } catch (e) { console.error('[echoes] load family failed', e); if (alive) setState((s) => ({ ...s, dataReady: true })); }
     })();
     return () => { alive = false; };
@@ -209,10 +215,12 @@ export function StoreProvider({ children }) {
     loadComments: async (storyId) => { if (!live) return null; const comments = await db.loadComments(storyId); setState((s) => ({ ...s, posts: s.posts.map((p) => (p.id === storyId ? { ...p, comments, commentCount: comments.length } : p)) })); return comments; },
     // Like / comment on a community post. Repost and follow stay in the browser for now.
     likePost: async (postId, on) => {
+      if (live && !state.userId) throw new Error('signin');
       setState((s) => ({ ...s, posts: s.posts.map((p) => (p.id === postId ? { ...p, liked: on, likes: Math.max(0, p.likes + (on ? 1 : -1)) } : p)) }));
       if (live) { try { await db.likeStory(postId, state.userId, on); } catch (e) { console.error('[echoes] like failed', e); } }
     },
     commentPost: async (postId, who, text) => {
+      if (live && !state.userId) throw new Error('signin');
       if (!live) { setState((s) => ({ ...s, posts: s.posts.map((p) => (p.id === postId ? { ...p, comments: [...p.comments, { who, text }] } : p)) })); return; }
       const c = await db.addComment(postId, state.userId, text);
       setState((s) => ({ ...s, posts: s.posts.map((p) => (p.id === postId ? { ...p, comments: [...p.comments, { ...c, who }], commentCount: (p.commentCount || 0) + 1 } : p)) }));

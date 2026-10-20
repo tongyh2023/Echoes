@@ -12,13 +12,13 @@ export default function Read() {
   const { state, updatePost, publish, likePost, commentPost, loadComments, live } = useStore();
   const raw = state.posts.find((p) => p.id === id); const po = raw ? postView(raw, lang) : null;
   const [draft, setDraft] = useState(''); const [follow, setFollow] = useState(false); const [toast, toastEl] = useToast();
+  useEffect(() => { if (live && po && !po.comments.length && po.commentCount) loadComments(po.id); }, [po?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   // Opened by direct link: the feed may still be loading from the database — wait before deciding it's gone.
-  if (!po && live && !state.dataReady) return null;
+  if (!po && live && !(state.dataReady && state.feedReady)) return null;
   if (!po) { nav('/community', { replace: true }); return null; }
   const me = state.email ? state.email.split('@')[0] : (zh ? '我' : 'Me');
   const justPublished = loc.state?.published;
-  const comment = () => { if (!draft.trim()) return; commentPost(po.id, me, draft.trim()); setDraft(''); };
-  useEffect(() => { if (live && po && !po.comments.length && po.commentCount) loadComments(po.id); }, [po?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const comment = () => { if (!draft.trim()) return; commentPost(po.id, me, draft.trim()).catch(() => nav('/login')); setDraft(''); };
   const own = po.storyId && state.stories.some((s) => s.id === po.storyId);
 
   return (
@@ -41,7 +41,7 @@ export default function Read() {
 
           <section className="mt-12 border-t border-ink pt-5">
             <div className="flex items-center gap-7 text-[14.5px]">
-              <button className={'cursor-pointer ' + (po.liked ? 'text-rec' : 'hover:text-ink text-ink-2')} onClick={() => likePost(po.id, !po.liked)}>{po.liked ? '♥' : '♡'} {po.likes}</button>
+              <button className={'cursor-pointer ' + (po.liked ? 'text-rec' : 'hover:text-ink text-ink-2')} onClick={() => likePost(po.id, !po.liked).catch(() => nav('/login'))}>{po.liked ? '♥' : '♡'} {po.likes}</button>
               <span className="text-ink-2">{t('community.comment')} {po.commentCount ?? po.comments.length}</span>
               <button className={'cursor-pointer ' + (po.reposted ? 'text-accent' : 'hover:text-ink text-ink-2')} onClick={() => { updatePost(po.id, (x) => ({ ...x, reposted: !x.reposted, reposts: x.reposts + (x.reposted ? -1 : 1) })); toast(po.reposted ? (zh ? '已取消转发' : 'Repost removed') : (zh ? '已转发到你们家的空间' : 'Reposted to your family space')); }}>↻ {po.reposts}</button>
             </div>

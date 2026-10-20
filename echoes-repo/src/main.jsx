@@ -81,9 +81,9 @@ function App() {
       <Route path="/story/:id/edit" element={<Guard><Review /></Guard>} />
       <Route path="/archive" element={<Navigate to="/home" replace />} />
       <Route path="/people/:name" element={<Guard><Person /></Guard>} />
-      <Route path="/read/:id" element={<Guard><Read /></Guard>} />
+      <Route path="/read/:id" element={<Read />} />
       <Route path="/family" element={<Guard><Family /></Guard>} />
-      <Route path="/community" element={<Guard><Community /></Guard>} />
+      <Route path="/community" element={<Community />} />
       <Route path="/settings" element={<Guard><Settings /></Guard>} />
       <Route path="/upgrade" element={<Guard><Upgrade /></Guard>} />
       <Route path="*" element={<NotFound />} />
