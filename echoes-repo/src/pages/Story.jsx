@@ -12,7 +12,7 @@ const EMOJI = ['❤️', '😂', '😢', '👏'];
 // The saved story, read like a page of a book. The family reacts underneath and asks the next question — which becomes the next thing to record.
 export default function Story() {
   const { t, lang } = useT(); const zh = lang === 'zh'; const nav = useNavigate(); const { id } = useParams();
-  const { state, publish, updateStory, react, addQuestion } = useStore();
+  const { state, publish, updateStory, react, addQuestion, live } = useStore();
   const raw = state.stories.find((s) => s.id === id); const story = storyView(raw, lang); const p = profileView(state.profile, lang);
   const [consent, setConsent] = useState(false); const [agree, setAgree] = useState(false); const [share, setShare] = useState(false); const [ask, setAsk] = useState('');
   const [toast, toastEl] = useToast();
@@ -72,7 +72,7 @@ export default function Story() {
             <h2 className="h2 mb-3">{p.mode === 'self' ? (zh ? '确定公开这个故事吗？' : 'Make this story public?') : (zh ? `${p.name}知道并同意公开这个故事吗？` : `Does ${p.name} know and agree to publish this?`)}</h2>
             <p className="text-ink-2 text-[14.5px] mb-5">{zh ? '发布后其他家庭能看到文字和已确认的注释，可以评论和转发；原声只对家人开放。随时可以取消发布，转发的副本会一起撤回。' : 'Other families will see the text and confirmed notes and can comment and repost; audio stays family-only. You can unpublish any time and reposts are withdrawn.'}{p.mode !== 'self' && (zh ? ' 这是他的故事和声音——请先问过他。' : ' It is their story — ask first.')}</p>
             <label className="flex items-start gap-3 text-[14.5px] mb-6 cursor-pointer"><input type="checkbox" className="mt-1.5 accent-ink" checked={agree} onChange={(e) => setAgree(e.target.checked)} />{p.mode === 'self' ? (zh ? '我确认公开这个故事。' : 'I confirm I want this story public.') : (zh ? `我已经问过${p.name}，他同意公开这个故事。` : `I asked ${p.name} and they agree.`)}</label>
-            <div className="flex items-center gap-6 justify-end"><button className="link-soft text-[14px]" onClick={() => setConsent(false)}>{t('common.cancel')}</button><button className="btn btn-primary" disabled={!agree} onClick={() => { publish(raw, true); setConsent(false); setAgree(false); nav('/read/c-' + story.id, { state: { published: true } }); }}>{t('story.publish')}</button></div>
+            <div className="flex items-center gap-6 justify-end"><button className="link-soft text-[14px]" onClick={() => setConsent(false)}>{t('common.cancel')}</button><button className="btn btn-primary" disabled={!agree} onClick={async () => { setConsent(false); setAgree(false); await publish(raw, true); nav('/read/' + (live ? story.id : 'c-' + story.id), { state: { published: true } }); }}>{t('story.publish')}</button></div>
           </div>
         </div>
       )}

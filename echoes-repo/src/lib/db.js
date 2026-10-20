@@ -227,3 +227,43 @@ export async function getAudioUrl(path) {
 export async function deleteAudio(path) {
   if (path) unwrap(await supabase.storage.from('audio').remove([path]));
 }
+
+// ---------- community ----------
+
+// A published story → the "post" object the community pages already render.
+const feedRowToPost = (r, myFamilyId) => {
+  const paras = (r.text?.first || []).map((x) => String(x).replace(/[\[\]]/g, ''));
+  return {
+    id: r.id, storyId: r.id, familyId: r.family_id, mine: Boolean(myFamilyId) && r.family_id === myFamilyId,
+    author: r.author || r.family_name || '', authorSub: r.author_sub || '', avatar: r.author_avatar || null,
+    title: r.title || '', excerpt: paras.join(' ').slice(0, 90) + (paras.join(' ').length > 90 ? '…' : ''), body: paras,
+    terms: r.terms || [], lang: r.lang || 'zh', topics: r.topics || [], era: r.era || '', place: r.place || '',
+    date: (r.created_at || '').slice(0, 10), readMin: Math.max(1, Math.round(paras.join('').length / 400)),
+    image: null, cover: 'warm', likes: r.likes || 0, liked: Boolean(r.liked), comments: [], commentCount: r.comments || 0, reposts: 0,
+  };
+};
+
+export async function loadFeed(myFamilyId) {
+  const rows = unwrap(await supabase.rpc('community_feed'));
+  return (rows || []).map((r) => feedRowToPost(r, myFamilyId));
+}
+
+export async function loadComments(storyId) {
+  const rows = unwrap(await supabase.rpc('community_comments', { story: storyId }));
+  return (rows || []).map((r) => ({ id: r.id, who: r.who, text: r.text, date: (r.created_at || '').slice(0, 10) }));
+}
+
+export async function likeStory(storyId, userId, on) {
+  if (on) unwrap(await supabase.from('community_activity').insert({ story_id: storyId, user_id: userId, kind: 'like' }));
+  else unwrap(await supabase.from('community_activity').delete().eq('story_id', storyId).eq('user_id', userId).eq('kind', 'like'));
+}
+
+export async function addComment(storyId, userId, text) {
+  const row = unwrap(await supabase.from('community_activity').insert({ story_id: storyId, user_id: userId, kind: 'comment', text }).select().single());
+  return { id: row.id, text: row.text, date: (row.created_at || '').slice(0, 10) };
+}
+
+// Publish = flip one boolean on the story row. Nothing is copied.
+export async function setPublished(storyId, on) {
+  unwrap(await supabase.from('stories').update({ published: on }).eq('id', storyId));
+}

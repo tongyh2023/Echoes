@@ -33,9 +33,21 @@ export const setPendingInvite = (code) => { try { sessionStorage.setItem(PENDING
 const getPendingInvite = () => { try { return sessionStorage.getItem(PENDING); } catch { return null; } };
 const clearPendingInvite = () => { try { sessionStorage.removeItem(PENDING); } catch {} };
 
+// Load everything that belongs to a family. Each list is fetched on its own and falls back to
+// empty on failure, so one missing table (a migration not yet run) never hides the whole family.
+async function loadFamilyData(family) {
+  const safe = (p, fallback) => p.catch((e) => { console.warn('[echoes] load failed', e?.message || e); return fallback; });
+  if (!family) return { storytellers: [], members: [], inviteCodes: [], stories: [], customQuestions: [], reactions: {} };
+  const [storytellers, members, inviteCodes, stories, customQuestions, reactions] = await Promise.all([
+    safe(db.loadStorytellers(family.id), []), safe(db.loadMembers(family.id), []), safe(db.loadInvites(family.id), []),
+    safe(db.loadStories(family.id), []), safe(db.loadQuestions(family.id), []), safe(db.loadReactions(family.id), {}),
+  ]);
+  return { storytellers, members, inviteCodes, stories, customQuestions, reactions };
+}
+
 export function StoreProvider({ children }) {
   // Seed posts carry non-serialisable/static fields (cover image URLs, body text). Re-apply them over whatever is cached so a stale cache never hides new seed content.
-  const hydrate = (s) => { const seed = Object.fromEntries(COMMUNITY_POSTS.map((p) => [p.id, p])); const known = new Set((s.posts || []).map((p) => p.id)); const posts = (s.posts || []).map((p) => (seed[p.id] ? { ...seed[p.id], ...p, image: seed[p.id].image, body: seed[p.id].body } : p)); COMMUNITY_POSTS.forEach((p) => { if (!known.has(p.id)) posts.push(p); }); const kept = posts.filter((p) => (p.mine || seed[p.id]) && ['zh', 'en'].includes(p.lang)); return { ...fresh(), ...s, posts: kept }; };
+  const hydrate = (s) => { const seed = Object.fromEntries(COMMUNITY_POSTS.map((p) => [p.id, p])); const known = new Set((s.posts || []).map((p) => p.id)); const posts = (s.posts || []).map((p) => (seed[p.id] ? { ...seed[p.id], ...p, image: seed[p.id].image, body: seed[p.id].body } : p)); COMMUNITY_POSTS.forEach((p) => { if (!known.has(p.id)) posts.push(p); }); const kept = posts.filter((p) => (p.mine || seed[p.id]) && ['zh', 'en'].includes(p.lang)); return { ...fresh(), ...s, posts: kept, dataReady: !hasSupabase }; }; // dataReady is never trusted from the cache: real mode must reload from the database
   const [state, setState] = useState(() => { try { const s = JSON.parse(localStorage.getItem(KEY)); if (s) return hydrate(s); } catch {} return fresh(); });
   useEffect(() => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {} }, [state]);
 
@@ -55,8 +67,9 @@ export function StoreProvider({ children }) {
         const pending = getPendingInvite();
         if (pending) { try { await db.joinFamily(pending); } catch (e) { console.warn('[echoes] pending invite failed', e); } clearPendingInvite(); }
         const family = await db.loadMyFamily();
-        const [tellers, members, inviteCodes, stories, customQuestions, reactions] = family ? await Promise.all([db.loadStorytellers(family.id), db.loadMembers(family.id), db.loadInvites(family.id), db.loadStories(family.id), db.loadQuestions(family.id), db.loadReactions(family.id)]) : [[], [], [], [], [], {}];
-        if (alive) setState((s) => ({ ...s, family, storytellers: tellers, members, inviteCodes, stories, customQuestions, reactions, activeId: tellers.some((t) => t.id === s.activeId) ? s.activeId : (tellers[0]?.id || null), dataReady: true }));
+        const data = await loadFamilyData(family);
+        const posts = await db.loadFeed(family?.id).catch((e) => { console.warn('[echoes] feed failed', e?.message || e); return []; });
+        if (alive) setState((s) => ({ ...s, family, ...data, posts, activeId: data.storytellers.some((t) => t.id === s.activeId) ? s.activeId : (data.storytellers[0]?.id || null), dataReady: true }));
       } catch (e) { console.error('[echoes] load family failed', e); if (alive) setState((s) => ({ ...s, dataReady: true })); }
     })();
     return () => { alive = false; };
@@ -109,8 +122,8 @@ export function StoreProvider({ children }) {
     },
     reloadFamily: async () => {
       const family = await db.loadMyFamily();
-      const [tellers, members, inviteCodes, stories, customQuestions, reactions] = family ? await Promise.all([db.loadStorytellers(family.id), db.loadMembers(family.id), db.loadInvites(family.id), db.loadStories(family.id), db.loadQuestions(family.id), db.loadReactions(family.id)]) : [[], [], [], [], [], {}];
-      setState((s) => ({ ...s, family, storytellers: tellers, members, inviteCodes, stories, customQuestions, reactions, activeId: tellers.some((t) => t.id === s.activeId) ? s.activeId : (tellers[0]?.id || null), dataReady: true }));
+      const data = await loadFamilyData(family);
+      setState((s) => ({ ...s, family, ...data, activeId: data.storytellers.some((t) => t.id === s.activeId) ? s.activeId : (data.storytellers[0]?.id || null), dataReady: true }));
     },
     // Make a fresh invite code for this family (owner or any member).
     createInvite: async () => {
@@ -155,7 +168,30 @@ export function StoreProvider({ children }) {
       catch (e) { console.error('[echoes] update story failed', e); }
     },
     deleteStory: async (id) => { const cur = state.stories.find((x) => x.id === id); setState((s) => ({ ...s, stories: s.stories.filter((x) => x.id !== id) })); if (live) { await db.deleteStory(id); try { await db.deleteAudio(cur?.audioPath); } catch {} } },
-    publish: (story, on) => setState((s) => {
+    // Publish to the community = set published on the story row; unpublish = clear it.
+    publish: async (story, on) => {
+      if (live) {
+        setState((s) => ({ ...s, stories: s.stories.map((x) => (x.id === story.id ? { ...x, published: on } : x)), consent: { ...s.consent, [story.id]: on ? true : s.consent[story.id] } }));
+        await db.setPublished(story.id, on);
+        const posts = await db.loadFeed(state.family?.id).catch(() => state.posts);
+        setState((s) => ({ ...s, posts }));
+        return;
+      }
+      return api.publishLocal(story, on);
+    },
+    refreshFeed: async () => { if (!live) return; const posts = await db.loadFeed(state.family?.id); setState((s) => ({ ...s, posts })); },
+    loadComments: async (storyId) => { if (!live) return null; const comments = await db.loadComments(storyId); setState((s) => ({ ...s, posts: s.posts.map((p) => (p.id === storyId ? { ...p, comments, commentCount: comments.length } : p)) })); return comments; },
+    // Like / comment on a community post. Repost and follow stay in the browser for now.
+    likePost: async (postId, on) => {
+      setState((s) => ({ ...s, posts: s.posts.map((p) => (p.id === postId ? { ...p, liked: on, likes: Math.max(0, p.likes + (on ? 1 : -1)) } : p)) }));
+      if (live) { try { await db.likeStory(postId, state.userId, on); } catch (e) { console.error('[echoes] like failed', e); } }
+    },
+    commentPost: async (postId, who, text) => {
+      if (!live) { setState((s) => ({ ...s, posts: s.posts.map((p) => (p.id === postId ? { ...p, comments: [...p.comments, { who, text }] } : p)) })); return; }
+      const c = await db.addComment(postId, state.userId, text);
+      setState((s) => ({ ...s, posts: s.posts.map((p) => (p.id === postId ? { ...p, comments: [...p.comments, { ...c, who }], commentCount: (p.commentCount || 0) + 1 } : p)) }));
+    },
+    publishLocal: (story, on) => setState((s) => {
       const stories_ = s.stories.map((x) => (x.id === story.id ? { ...x, published: on } : x));
       let posts = s.posts.filter((p) => p.storyId !== story.id);
       const p = s.storytellers.find((x) => x.id === s.activeId);
