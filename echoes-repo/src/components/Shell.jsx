@@ -81,9 +81,11 @@ export default function Shell({ children, nav = true }) {
 export function Narrow({ children, className = '' }) { return <div className={'max-w-[640px] mx-auto ' + className}>{children}</div>; }
 
 // Consistent "go back" link: history back when there is one, otherwise a given fallback route.
-export function Back({ to = '/home', label }) {
+export function Back({ to = '/home', label, hard = false, confirm }) {
   const { t } = useT(); const nav = useNavigate();
-  return <button className="ed-caps hover:!text-ink cursor-pointer" onClick={() => (window.history.length > 1 ? nav(-1) : nav(to))}>{label || t('nav.back')}</button>;
+  // hard: always go to `to`. Used after one-way steps (processing → review): history back would re-run them.
+  const go = () => { if (confirm && !window.confirm(confirm)) return; if (hard || window.history.length <= 1) nav(to, { replace: true }); else nav(-1); };
+  return <button className="ed-caps hover:!text-ink cursor-pointer" onClick={go}>{label || t('nav.back')}</button>;
 }
 
 // Real audio player: play/pause, progress over a waveform, time.
@@ -154,10 +156,10 @@ export function useToast() {
 
 // ---- Layout primitives: every app page uses the same header block and the same two-column grid ----
 // PageHeader: [back] / eyebrow / h1 / sub, with optional actions on the right of the title row.
-export function PageHeader({ back, backTo = '/home', backLabel, eyebrow, title, sub, actions, className = '' }) {
+export function PageHeader({ back, backTo = '/home', backLabel, backHard = false, backConfirm, eyebrow, title, sub, actions, className = '' }) {
   return (
     <div className={'doc-head ' + className}>
-      {back && <div className="mb-5"><Back to={backTo} label={backLabel} /></div>}
+      {back && <div className="mb-5"><Back to={backTo} label={backLabel} hard={backHard} confirm={backConfirm} /></div>}
       {eyebrow && <div className="ed-caps">{eyebrow}</div>}
       {(title || actions) && (
         <div className="flex items-end justify-between gap-6 flex-wrap">

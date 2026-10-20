@@ -96,7 +96,7 @@ async function tidyForReal({ audioBlob, question, profile, lang }) {
   return r.json();
 }
 
-export async function transcribeAndTidy({ audioBlob, typedText, question, profile, simulateFail, lang = 'zh' }) {
+export async function transcribeAndTidy({ audioBlob, typedText, question, profile, simulateFail, lang = 'zh', allowSample = true }) {
   if (audioBlob instanceof Blob && audioBlob.size > 0 && typeof window !== 'undefined' && window.location.protocol.startsWith('http')) {
     return tidyForReal({ audioBlob, question, profile, lang });   // errors surface on the Processing screen with a retry
   }
@@ -113,6 +113,7 @@ export async function transcribeAndTidy({ audioBlob, typedText, question, profil
       terms: a.terms, topics: q ? q.tags : ['故事'], people: [], era: profile.birth ? (Math.floor(+profile.birth / 10) * 10 + 10) + 's' : '', place: (profile.hometown || '').split(' ').pop(),
     };
   }
+  if (!allowSample) throw new Error(lang === 'zh' ? '没有录到声音。回到录音页再录一次。' : 'Nothing was recorded. Go back and record again.');
   const base = SEED_STORIES[0];
   if (lang === 'en') {   // demo only: English interface gets the English sample so the walkthrough stays in one language
     return { title: base.titleEn, text: { first: base.textEn, raw: base.textEn.map((x) => x.replace(/[\[\]]/g, '')) }, terms: base.terms.map((t) => ({ ...t, word: t.wordEn, kind: t.kindEn, note: t.noteEn, status: 'pending' })), topics: base.topicsEn, people: base.peopleEn, era: base.era, place: base.placeEn };

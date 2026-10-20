@@ -134,3 +134,10 @@ Invite   { name, sub, perms:['read'|'correct'|'add'] }
 
 - Sign-up page: the "Have an invite code? Join a family" block is too small and easy to miss. Give it the same weight as the main form (or its own step), and make the remembered-code state obvious.
 - (add items here as testing continues)
+
+## 2026-10-20 · After the first real recordings (fix4)
+- **No invention.** The tidy prompt now forbids adding anything the speaker did not say (the question is background only; short transcript → short story), temperature 0.1, and `api/tidy.js` has a hard guard: if the tidied text is materially longer than the transcript, the transcript itself is kept and `provider` says "(kept transcript as-is)".
+- **Dialect hint.** The speech model gets a real sentence (hometown, dialects, question) plus a small per-dialect word list (`DIALECT_WORDS` in `api/tidy.js`) so 上海话 "生煎包" is not written as a sound-alike. Extend the lists as families report misses.
+- **Back from Review** always goes to /home (or the story when editing) — never history-back into /processing. Processing redirects an already-tidied draft to /review instead of re-running.
+- **No sample story in real accounts.** A draft with no audio now shows an error; the 年糕 sample only appears in demo mode.
+- **Real take length.** Stories showed 4:12 for every recording (stale closure); fixed.

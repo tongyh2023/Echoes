@@ -4,6 +4,7 @@ import Shell, { Audio } from '../components/Shell';
 import { useT } from '../lib/i18n';
 import { useStore, FREE_LIMIT } from '../lib/store';
 import { QUESTIONS, transcribeAndTidy } from '../mock/data';
+import { hasSupabase } from '../lib/supabase';
 import { fillQ } from './Home';
 import { profileView } from '../lib/loc';
 
@@ -30,7 +31,7 @@ export default function Record() {
   const [status, setStatus] = useState('idle'); // idle | recording | done
   const [sec, setSec] = useState(0); const [takes, setTakes] = useState([]);
   const [noMic, setNoMic] = useState(false); const [demo, setDemo] = useState(false);
-  const rec = useRef(null), chunks = useRef([]), timer = useRef(null), fileRef = useRef(null);
+  const rec = useRef(null), chunks = useRef([]), timer = useRef(null), fileRef = useRef(null), secRef = useRef(0);
   const stopTimer = () => { clearInterval(timer.current); timer.current = null; };
   useEffect(() => () => stopTimer(), []);
 
@@ -39,21 +40,21 @@ export default function Record() {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mr = new MediaRecorder(stream); chunks.current = [];
       mr.ondataavailable = (e) => chunks.current.push(e.data);
-      mr.onstop = () => { const blob = new Blob(chunks.current, { type: 'audio/webm' }); setTakes((ts) => [...ts, { blob, url: URL.createObjectURL(blob), sec }]); stream.getTracks().forEach((tr) => tr.stop()); };
-      rec.current = mr; mr.start(); setDemo(false); setStatus('recording'); setSec(0);
-      timer.current = setInterval(() => setSec((s) => s + 1), 1000);
+      mr.onstop = () => { const blob = new Blob(chunks.current, { type: 'audio/webm' }); setTakes((ts) => [...ts, { blob, url: URL.createObjectURL(blob), sec: secRef.current }]); stream.getTracks().forEach((tr) => tr.stop()); };
+      rec.current = mr; mr.start(); setDemo(false); setStatus('recording'); setSec(0); secRef.current = 0;
+      timer.current = setInterval(() => setSec((s) => { secRef.current = s + 1; return s + 1; }), 1000);
     } catch { setNoMic(true); }
   };
   // Demo take for embedded previews where the mic is blocked. Remove before launch.
-  const startDemo = () => { setDemo(true); setNoMic(false); setStatus('recording'); setSec(0); timer.current = setInterval(() => setSec((s) => s + 1), 1000); };
+  const startDemo = () => { setDemo(true); setNoMic(false); setStatus('recording'); setSec(0); secRef.current = 0; timer.current = setInterval(() => setSec((s) => { secRef.current = s + 1; return s + 1; }), 1000); };
   const stop = () => { stopTimer(); if (demo) setTakes((ts) => [...ts, { blob: null, url: null, sec: Math.max(sec, 1) }]); else rec.current?.stop(); setStatus('done'); };
-  const redo = () => { stopTimer(); if (status === 'recording' && !demo) rec.current?.stop(); setTakes([]); setSec(0); setDemo(false); setStatus('idle'); };
+  const redo = () => { stopTimer(); if (status === 'recording' && !demo) rec.current?.stop(); setTakes([]); setSec(0); secRef.current = 0; setDemo(false); setStatus('idle'); };
   const totalSec = takes.reduce((n, x) => n + x.sec, 0) + (status === 'recording' ? sec : 0);
   const last = takes[takes.length - 1];
   const proceed = () => {
     const blobs = takes.map((x) => x.blob).filter(Boolean);
     const merged = blobs.length > 1 ? new Blob(blobs, { type: blobs[0].type }) : blobs[0] || null;   // several takes → one recording, in order
-    setDraft({ questionId: q.id, question: q.text, audioUrl: merged ? URL.createObjectURL(merged) : null, duration: fmt(totalSec || 252), pending: true, blob: !!merged, typed: '' }); nav('/processing');
+    setDraft({ questionId: q.id, question: q.text, audioUrl: merged ? URL.createObjectURL(merged) : null, duration: fmt(totalSec), pending: true, blob: !!merged, typed: '' }); nav('/processing');
   };
   const onUpload = (e) => {
     const f = e.target.files?.[0]; if (!f) return; setUploadErr('');
@@ -131,14 +132,15 @@ export function Processing() {
   const [step, setStep] = useState(0); const [failed, setFailed] = useState(false); const [err, setErr] = useState(''); const [attempt, setAttempt] = useState(0); const draft = state.draft; const p = state.profile;
   useEffect(() => {
     setFailed(false); setStep(0);
-    if (!draft) { nav('/home'); return; }
+    if (!draft) { nav('/home', { replace: true }); return; }
+    if (draft.text) { nav('/review', { replace: true }); return; }   // already tidied → straight back to review
     let alive = true;
     (async () => {
       setTimeout(() => alive && setStep(1), 700); setTimeout(() => alive && setStep(2), 1500);
       let res;
       try {
         const blob = draft.blob && draft.audioUrl ? await fetch(draft.audioUrl).then((r) => r.blob()) : null;
-        res = await transcribeAndTidy({ audioBlob: blob, typedText: draft.typed, question: draft.question, profile: p, simulateFail: false, lang });
+        res = await transcribeAndTidy({ audioBlob: blob, typedText: draft.typed, question: draft.question, profile: p, simulateFail: false, lang, allowSample: state.demo || !hasSupabase });
       } catch (e) { console.error('tidy failed:', e); if (alive) { setErr(String(e.message || e)); setFailed(true); } return; }
       if (!alive) return;
       setStep(3);

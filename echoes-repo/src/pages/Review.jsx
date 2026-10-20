@@ -52,7 +52,7 @@ export default function Review() {
   return (
     <Shell>
       {toastEl}
-      <PageHeader back eyebrow={id ? t('review.editEyebrow') : t('review.eyebrow')} className="!border-line !pb-4 !mb-8" />
+      <PageHeader back backHard backTo={id ? '/story/' + id : '/home'} backConfirm={id ? undefined : (zh ? '这个故事还没保存。离开的话录音会留在草稿里，确定离开？' : 'This story is not saved yet. Leave anyway? The take stays in drafts.')} eyebrow={id ? t('review.editEyebrow') : t('review.eyebrow')} className="!border-line !pb-4 !mb-8" />
       <TwoCol sticky={false} asideWidth={320} main={(
         <article>
           <input className="serif font-medium text-[32px] leading-[1.2] bg-transparent outline-none w-full mb-2 border-b border-transparent focus:border-line" value={story.title} onChange={(e) => update({ title: e.target.value })} />
