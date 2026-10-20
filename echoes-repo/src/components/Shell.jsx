@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useT } from '../lib/i18n';
 import { useStore } from '../lib/store';
+import { getAudioUrl } from '../lib/db';
 import { Mark } from './Illos';
 
 export function LangToggle() {
@@ -85,17 +86,35 @@ export function Back({ to = '/home', label }) {
 }
 
 // Real audio player: play/pause, progress over a waveform, time.
-export function Audio({ label, dur = '0:00', src }) {
-  const { t } = useT(); const ref = useRef(null);
+// Plays a recording. `src` is a direct URL (local preview); `path` is a file in the private
+// "audio" bucket — a temporary link is requested only when the person presses play, and
+// Supabase refuses to issue one to anybody outside the family.
+export function Audio({ label, dur = '0:00', src: srcProp, path }) {
+  const { t, lang } = useT(); const ref = useRef(null);
   const [playing, setPlaying] = useState(false); const [prog, setProg] = useState(0); const [cur, setCur] = useState(0);
+  const [signed, setSigned] = useState(null); const [loading, setLoading] = useState(false); const [failed, setFailed] = useState(false);
+  const src = srcProp || signed; const canPlay = Boolean(srcProp || path);
+  useEffect(() => { setSigned(null); setFailed(false); }, [path]);
+  const resolve = async () => {
+    if (src || !path) return src;
+    setLoading(true);
+    try { const url = await getAudioUrl(path); setSigned(url); return url; } catch (e) { console.warn('[echoes] audio link refused', e); setFailed(true); return null; } finally { setLoading(false); }
+  };
   const fmt = (s) => (isFinite(s) ? Math.floor(s / 60) + ':' + ('0' + Math.floor(s % 60)).slice(-2) : dur);
   useEffect(() => { const a = ref.current; if (!a) return; const onT = () => { setCur(a.currentTime); setProg(a.duration ? a.currentTime / a.duration : 0); }; const onE = () => { setPlaying(false); setProg(0); setCur(0); }; a.addEventListener('timeupdate', onT); a.addEventListener('ended', onE); return () => { a.removeEventListener('timeupdate', onT); a.removeEventListener('ended', onE); }; }, [src]);
-  const toggle = () => { const a = ref.current; if (!src || !a) return; if (a.paused) { a.play(); setPlaying(true); } else { a.pause(); setPlaying(false); } };
+  const toggle = async () => {
+    if (!canPlay || loading) return;
+    const url = await resolve(); if (!url) return;
+    // the <audio> element mounts once a URL exists; give React one tick to render it
+    await new Promise((r) => setTimeout(r, 0));
+    const a = ref.current; if (!a) return;
+    if (a.paused) { a.play(); setPlaying(true); } else { a.pause(); setPlaying(false); }
+  };
   const bars = 48;
   return (
     <div className="flex items-center gap-3 card px-4 py-2.5">
       {src && <audio ref={ref} src={src} preload="metadata" />}
-      <button className={'w-9 h-9 text-paper text-[11px] flex items-center justify-center cursor-pointer flex-none ' + (src ? 'bg-ink' : 'bg-ink-3')} onClick={toggle} aria-label={playing ? 'pause' : 'play'}>{playing ? '❚❚' : '▶'}</button>
+      <button className={'w-9 h-9 text-paper text-[11px] flex items-center justify-center cursor-pointer flex-none ' + (canPlay && !failed ? 'bg-ink' : 'bg-ink-3')} onClick={toggle} aria-label={playing ? 'pause' : 'play'} title={failed ? (lang === 'zh' ? '原声仅对家人开放' : 'Audio is family-only') : ''}>{loading ? '…' : playing ? '❚❚' : '▶'}</button>
       <div className="flex-1 flex items-center gap-[3px] h-7 overflow-hidden cursor-pointer" aria-hidden="true" onClick={(e) => { const a = ref.current; if (!a || !a.duration) return; const r = e.currentTarget.getBoundingClientRect(); a.currentTime = ((e.clientX - r.left) / r.width) * a.duration; }}>
         {Array.from({ length: bars }).map((_, i) => <span key={i} className="flex-1 bg-ink" style={{ height: `${20 + Math.abs(Math.sin(i * 0.7) * 70)}%`, opacity: i / bars <= prog ? 1 : 0.3 }} />)}
       </div>

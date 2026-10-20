@@ -129,8 +129,20 @@ export function StoreProvider({ children }) {
       const st = { ...story, storytellerId: story.storytellerId || state.activeId };
       const exists = state.stories.some((x) => x.id === st.id);
       if (!live) { setState((s) => ({ ...s, draft: null, stories: exists ? s.stories.map((x) => (x.id === st.id ? st : x)) : [st, ...s.stories] })); return st; }
-      const saved = exists ? await db.updateStory(st.id, st) : await db.insertStory(state.family.id, state.userId, st);
-      // keep the local-only audio preview URL so the just-saved story can still play before Storage lands (step 6)
+      let saved;
+      if (exists) saved = await db.updateStory(st.id, st);
+      else {
+        // New story: choose the id here so the recording can be uploaded FIRST under <family>/<story>.
+        // If the upload fails the story is not inserted, so a retry never creates a duplicate.
+        const id = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : null;
+        let audioPath = st.audioPath || null;
+        if (st.audioUrl && st.audioUrl.startsWith('blob:')) {
+          const blob = await fetch(st.audioUrl).then((r) => r.blob());
+          if (blob.size > 0) audioPath = await db.uploadAudio(state.family.id, id, blob);
+        }
+        saved = await db.insertStory(state.family.id, state.userId, { ...st, id, audioPath });
+      }
+      // keep the in-memory preview URL for this session so playback is instant right after saving
       const merged = { ...saved, audioUrl: st.audioUrl || saved.audioUrl };
       setState((s) => ({ ...s, draft: null, stories: exists ? s.stories.map((x) => (x.id === merged.id ? merged : x)) : [merged, ...s.stories] }));
       return merged;
@@ -142,7 +154,7 @@ export function StoreProvider({ children }) {
       try { const saved = await db.updateStory(id, { ...cur, ...patch }); setState((s) => ({ ...s, stories: s.stories.map((x) => (x.id === id ? { ...saved, audioUrl: x.audioUrl } : x)) })); }
       catch (e) { console.error('[echoes] update story failed', e); }
     },
-    deleteStory: async (id) => { setState((s) => ({ ...s, stories: s.stories.filter((x) => x.id !== id) })); if (live) await db.deleteStory(id); },
+    deleteStory: async (id) => { const cur = state.stories.find((x) => x.id === id); setState((s) => ({ ...s, stories: s.stories.filter((x) => x.id !== id) })); if (live) { await db.deleteStory(id); try { await db.deleteAudio(cur?.audioPath); } catch {} } },
     publish: (story, on) => setState((s) => {
       const stories_ = s.stories.map((x) => (x.id === story.id ? { ...x, published: on } : x));
       let posts = s.posts.filter((p) => p.storyId !== story.id);

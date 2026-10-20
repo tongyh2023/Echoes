@@ -77,7 +77,7 @@ export default function Review() {
           </div>
           <StoryText paragraphs={paras} terms={story.terms} active={active} onTerm={(tm) => tm && setActive(tm.id)} editable={editing} onChange={setPara} />
           {showRaw && <div className="mt-6 border-l-2 border-line pl-5"><div className="ed-caps mb-2">{t('review.rawTitle')}</div><div className="story text-[15px] leading-[1.8] text-ink-2" style={{ maxWidth: 'none' }}>{(story.text.raw || paras).map((p, i) => <p key={i}>{p.replace(/[\[\]]/g, '')}</p>)}</div></div>}
-          <div className="mt-8"><Audio label={t('review.original')} dur={story.duration} src={story.audioUrl} /></div>
+          <div className="mt-8"><Audio label={t('review.original')} dur={story.duration} src={story.audioUrl} path={story.audioPath} /></div>
           <p className="text-[12.5px] text-ink-3 mt-2">{t('review.keepHint')}{story.provider && <span className="ml-2 opacity-70">· {zh ? '由' : 'by'} {story.provider}</span>}</p>
           {(showMedia || story.media?.length > 0) && <div className="mt-8"><div className="ed-caps mb-3">{t('review.media')}</div><MediaPanel media={story.media} onChange={(m) => update({ media: m })} compact /></div>}
         </article>

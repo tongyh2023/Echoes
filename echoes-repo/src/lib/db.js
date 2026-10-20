@@ -145,7 +145,7 @@ export async function loadStories(familyId) {
 
 // Insert a new story. The database assigns the id (uuid) and created_at.
 export async function insertStory(familyId, authorId, s) {
-  const row = unwrap(await supabase.from('stories').insert({ family_id: familyId, author_id: authorId, ...storyToRow(s) }).select().single());
+  const row = unwrap(await supabase.from('stories').insert({ ...(s.id && /^[0-9a-f-]{36}$/.test(s.id) ? { id: s.id } : {}), family_id: familyId, author_id: authorId, ...storyToRow(s) }).select().single());
   return rowToStory(row);
 }
 
@@ -197,4 +197,33 @@ export async function addReaction(storyId, familyId, userId, emoji) {
 
 export async function removeReaction(storyId, userId, emoji) {
   unwrap(await supabase.from('story_reactions').delete().eq('story_id', storyId).eq('user_id', userId).eq('emoji', emoji));
+}
+
+// ---------- recordings (Supabase Storage, bucket "audio") ----------
+//
+// Files are stored as  <family_id>/<story_id>.<ext>  inside the private "audio" bucket.
+// The bucket's policies (001_schema.sql) read the first path segment and ask
+// "is the caller a member of that family?" — so the path IS the permission.
+
+const extFor = (type = '') => (type.includes('mp4') || type.includes('m4a') || type.includes('aac') ? 'm4a' : type.includes('ogg') ? 'ogg' : type.includes('wav') ? 'wav' : 'webm');
+
+export async function uploadAudio(familyId, storyId, blob) {
+  const path = `${familyId}/${storyId}.${extFor(blob.type)}`;
+  unwrap(await supabase.storage.from('audio').upload(path, blob, { contentType: blob.type || 'audio/webm', upsert: true }));
+  return path;
+}
+
+// A temporary link (1 hour) to play a recording. Supabase checks the policy before issuing it,
+// so someone outside the family gets an error here, not a URL. Links are cached per page load.
+const urlCache = new Map();
+export async function getAudioUrl(path) {
+  const hit = urlCache.get(path);
+  if (hit && hit.exp > Date.now()) return hit.url;
+  const { signedUrl } = unwrap(await supabase.storage.from('audio').createSignedUrl(path, 3600));
+  urlCache.set(path, { url: signedUrl, exp: Date.now() + 55 * 60 * 1000 });
+  return signedUrl;
+}
+
+export async function deleteAudio(path) {
+  if (path) unwrap(await supabase.storage.from('audio').remove([path]));
 }

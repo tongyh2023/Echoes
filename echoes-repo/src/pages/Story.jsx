@@ -33,7 +33,7 @@ export default function Story() {
           <div className="ed-caps mb-3">{story.date} · {[story.era, story.place].filter(Boolean).join(' · ')}</div>
           <h1 className="serif font-medium text-[38px] leading-[1.2] m-0 mb-2">{story.title}</h1>
           <p className="text-[14.5px] text-ink-2 mb-7">{p.name}{story.people?.length ? ' · ' + story.people.join('、') : ''}{story.topics?.length ? ' · ' + story.topics.join('、') : ''}</p>
-          <div className="mb-8"><Audio dur={story.duration} src={story.audioUrl} /></div>
+          <div className="mb-8"><Audio dur={story.duration} src={story.audioUrl} path={story.audioPath} /></div>
           <StoryText paragraphs={story.text.first} terms={story.terms} mode="glossary" />
           {story.terms.some((x) => x.status === 'ok') && <p className="text-[12.5px] text-ink-3 mt-1">{t('story.glossary')}</p>}
           {pending > 0 && <p className="mt-5 text-[13.5px] text-ink-2 border-l-2 border-accent pl-4">{zh ? `${pending} 处注释还没确认，确认后才会显示给读者。` : `${pending} note(s) pending — they show to readers once confirmed.`} <button className="link ml-2" onClick={() => nav('/story/' + story.id + '/edit')}>{zh ? '去确认' : 'Review'} →</button></p>}

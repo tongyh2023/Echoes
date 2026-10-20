@@ -111,7 +111,7 @@ export function SharedStory() {
       <button className="ed-caps hover:!text-ink cursor-pointer mb-6" onClick={() => nav('/shared')}>← {zh ? '全部故事' : 'All stories'}</button>
       <div className="eyebrow mb-1">{s0.era} · {s0.place}</div>
       <h1 className="h1 mb-4">{s0.title}</h1>
-      <div className="mb-5"><Audio dur={s0.duration} src={s0.audioUrl} /></div>
+      <div className="mb-5"><Audio dur={s0.duration} src={s0.audioUrl} path={s0.audioPath} /></div>
       <StoryText paragraphs={s0.text.first} terms={local} className="text-[18px]" />
       <div className="mt-8">
         <div className="eyebrow mb-2">{zh ? '这些词写得对吗？' : 'Are these right?'}</div>
