@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Shell, { Avatar, PageHeader, TwoCol, useToast, useFamilyName } from '../components/Shell';
+import Shell, { Avatar, PageHeader, TwoCol, useToast, useFamilyName, copyText } from '../components/Shell';
 import { useT, LANGUAGES } from '../lib/i18n';
 import { useStore } from '../lib/store';
 import { profileView } from '../lib/loc';
@@ -66,12 +66,12 @@ export default function Family() {
           {!live && (<><input className="field w-full mb-4 text-[15px]" type="email" value={contact} onChange={(e) => setContact(e.target.value)} placeholder={t('invite.contactPh')} />
           <button className="btn btn-primary" disabled={!/^\S+@\S+\.\S+$/.test(contact)} onClick={() => { addInvite({ name: contact, sub: 'pending', perms }); setContact(''); toast(zh ? '邀请已发送' : 'Invitation sent'); }}>{t('invite.send')}</button></>)}
           <div className={(live ? '' : 'mt-6 pt-4 border-t border-line')}>
-            <div className="flex items-baseline justify-between"><span className="ed-caps">{t('family.code')}</span>{code && <button className="link-soft text-[12.5px]" onClick={() => { navigator.clipboard?.writeText(code); toast(t('invite.copied')); }}>{zh ? '复制' : 'Copy'}</button>}</div>
+            <div className="flex items-baseline justify-between"><span className="ed-caps">{t('family.code')}</span>{code && <button className="link-soft text-[12.5px]" onClick={() => { copyText(code).then((ok) => toast(ok ? t('invite.copied') : (zh ? '复制失败，请长按手动复制' : 'Copy failed — select and copy manually'))); }}>{zh ? '复制' : 'Copy'}</button>}</div>
             {code ? <div className="serif text-[26px] tracking-[.12em] font-medium mt-1">{code}</div> : <button className="btn btn-primary mt-3" disabled={making} onClick={newCode}>{making ? '…' : (zh ? '生成邀请码' : 'Create an invite code')}</button>}
             <p className="text-[12.5px] text-ink-3 m-0 mt-1">{t('family.codeHint')}</p>
           </div>
           {code && <div className="mt-5 grid gap-2 text-[13.5px]">
-            <button className="link-soft w-fit" onClick={() => { navigator.clipboard?.writeText(inviteLink); toast(t('invite.copied')); }}>{t('invite.copy')}</button>
+            <button className="link-soft w-fit" onClick={() => { copyText(inviteLink).then((ok) => toast(ok ? t('invite.copied') : (zh ? '复制失败，请长按手动复制' : 'Copy failed — select and copy manually'))); }}>{t('invite.copy')}</button>
             <button className="link-soft w-fit" onClick={() => nav('/invite/' + code)}>{t('invite.preview')}</button>
             {live && <button className="link-soft w-fit" disabled={making} onClick={newCode}>{zh ? '换一个新码' : 'Make a new code'}</button>}
             {live && <button className="link-soft w-fit !text-ink-3" onClick={async () => { await revokeInvite(code); toast(zh ? '已作废' : 'Revoked'); }}>{zh ? '作废这个码' : 'Revoke this code'}</button>}

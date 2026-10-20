@@ -22,10 +22,10 @@ export default function Pick() {
   const toggle = (id) => { setOpenCh(openCh === id ? null : id); if (openCh === id) return; setTimeout(() => document.getElementById('ch-' + id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 30); };
   const record = (q, text) => nav(Boolean(q.source) ? '/record/own?text=' + encodeURIComponent(text) + '&cq=' + q.id : '/record/' + q.id);
   const openSheet = (q, text) => { setSel({ q, text }); setDraft(text); setEditing(false); };
-  const saveEdit = () => {
+  const saveEdit = async () => {
     const text = draft.trim(); if (!text) return;
-    if (sel.Boolean(q.source)) { updateQuestion(sel.q.id, { text }); setSel({ ...sel, text }); }
-    else { const id = addQuestion({ text, source: 'edited', from: sel.q.id }); setSel({ q: { id, source: 'edited' }, text }); setOpenCh('own'); }
+    if (Boolean(sel.q.source)) { updateQuestion(sel.q.id, { text }); setSel({ ...sel, text }); }
+    else { const id = await addQuestion({ text, source: 'edited', from: sel.q.id }); setSel({ q: { id, source: 'edited' }, text }); setOpenCh('own'); }
     setEditing(false);
   };
   const srcLabel = (q) => q.source === 'followup' ? (zh ? `${q.who || '家人'}读「${q.fromTitle}」时追问的` : `Asked by ${q.who || 'family'} after “${q.fromTitle}”`) : q.source === 'edited' ? (zh ? '改自问题库' : 'Reworded from the library') : (zh ? '自己写的' : 'Written by the family');
@@ -88,7 +88,7 @@ export default function Pick() {
                 <div className="flex flex-wrap items-center gap-6">
                   <button className="btn btn-primary btn-lg" onClick={() => record(sel.q, sel.text)}>{zh ? '录这个' : 'Record this'} →</button>
                   <button className="link-soft text-[14.5px]" onClick={() => setEditing(true)}>{zh ? '改一改说法' : 'Reword it'}</button>
-                  {sel.Boolean(q.source) && <button className="link-soft text-[14.5px]" onClick={() => { removeQuestion(sel.q.id); setSel(null); }}>{zh ? '删除' : 'Remove'}</button>}
+                  {Boolean(sel.q.source) && <button className="link-soft text-[14.5px]" onClick={() => { removeQuestion(sel.q.id); setSel(null); }}>{zh ? '删除' : 'Remove'}</button>}
                 </div>
               </>
             )}

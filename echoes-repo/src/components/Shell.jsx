@@ -87,6 +87,12 @@ export function Back({ to = '/home', label }) {
 }
 
 // Real audio player: play/pause, progress over a waveform, time.
+// Copy text without ever throwing: returns true on success so the caller can show the right toast.
+export async function copyText(text) {
+  try { if (navigator.clipboard?.writeText) { await navigator.clipboard.writeText(text); return true; } } catch {}
+  try { const ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select(); const ok = document.execCommand('copy'); ta.remove(); return ok; } catch { return false; }
+}
+
 // Plays a recording. `src` is a direct URL (local preview); `path` is a file in the private
 // "audio" bucket — a temporary link is requested only when the person presses play, and
 // Supabase refuses to issue one to anybody outside the family.
@@ -109,7 +115,7 @@ export function Audio({ label, dur = '0:00', src: srcProp, path }) {
     // the <audio> element mounts once a URL exists; give React one tick to render it
     await new Promise((r) => setTimeout(r, 0));
     const a = ref.current; if (!a) return;
-    if (a.paused) { a.play(); setPlaying(true); } else { a.pause(); setPlaying(false); }
+    if (a.paused) { a.play().then(() => setPlaying(true)).catch((e) => { console.warn('[echoes] playback failed', e?.message); setFailed(true); setPlaying(false); }); } else { a.pause(); setPlaying(false); }
   };
   const bars = 48;
   return (

@@ -52,6 +52,26 @@ function NeedsAccount({ children }) {
   return children;
 }
 
+// Last line of defence: if any page throws while rendering, show a message instead of a blank screen.
+class ErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { error: null }; }
+  static getDerivedStateFromError(error) { return { error }; }
+  componentDidCatch(error, info) { console.error('[echoes] page crashed', error, info?.componentStack); }
+  render() {
+    if (!this.state.error) return this.props.children;
+    const zh = (document.documentElement.lang || 'zh').startsWith('zh');
+    return (
+      <div style={{ maxWidth: 560, margin: '80px auto', padding: '0 24px', fontFamily: 'inherit' }}>
+        <div className="ed-caps" style={{ marginBottom: 12 }}>{zh ? '出了点问题' : 'Something went wrong'}</div>
+        <h1 className="serif" style={{ fontSize: 28, margin: '0 0 12px' }}>{zh ? '这一页没能显示出来。' : 'This page could not be shown.'}</h1>
+        <p style={{ color: 'var(--color-ink-2)', marginBottom: 20 }}>{zh ? '你的故事和录音都没有丢。回首页再试一次；如果还是这样，把下面这行发给我们。' : 'Your stories and recordings are safe. Go home and try again; if it happens again, send us the line below.'}</p>
+        <pre style={{ fontSize: 12, whiteSpace: 'pre-wrap', color: 'var(--color-ink-3)', marginBottom: 24 }}>{String(this.state.error?.message || this.state.error)}</pre>
+        <a className="btn btn-primary" href="/home" onClick={() => this.setState({ error: null })}>{zh ? '回首页' : 'Go home'}</a>
+      </div>
+    );
+  }
+}
+
 function App() {
   return (
     <Routes>
@@ -93,6 +113,6 @@ function App() {
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <I18nProvider><StoreProvider><AuthProvider><Router><App /></Router></AuthProvider></StoreProvider></I18nProvider>
+    <I18nProvider><StoreProvider><AuthProvider><Router><ErrorBoundary><App /></ErrorBoundary></Router></AuthProvider></StoreProvider></I18nProvider>
   </React.StrictMode>
 );
