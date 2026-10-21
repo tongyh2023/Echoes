@@ -33,9 +33,13 @@ export default function Record() {
   const [sec, setSec] = useState(0); const [takes, setTakes] = useState([]);
   const [noMic, setNoMic] = useState(false); const [demo, setDemo] = useState(false);
   const rec = useRef(null), chunks = useRef([]), timer = useRef(null), fileRef = useRef(null), secRef = useRef(0);
+  // One take is at most MAX_SEC (MVP: 3 minutes). A story is one question answered, not a whole afternoon —
+  // and short takes keep the upload small and the tidy-up quick. Several takes can still be joined.
+  const MAX_SEC = 180, WARN_SEC = 150;
   const stopTimer = () => { clearInterval(timer.current); timer.current = null; };
   useEffect(() => () => stopTimer(), []);
 
+  const stopRef = useRef(null);
   const start = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -43,12 +47,14 @@ export default function Record() {
       mr.ondataavailable = (e) => chunks.current.push(e.data);
       mr.onstop = () => { const blob = new Blob(chunks.current, { type: 'audio/webm' }); setTakes((ts) => [...ts, { blob, url: URL.createObjectURL(blob), sec: secRef.current }]); stream.getTracks().forEach((tr) => tr.stop()); };
       rec.current = mr; mr.start(); setDemo(false); setStatus('recording'); setSec(0); secRef.current = 0;
-      timer.current = setInterval(() => setSec((s) => { secRef.current = s + 1; return s + 1; }), 1000);
+      timer.current = setInterval(() => setSec((s) => { secRef.current = s + 1; if (s + 1 >= MAX_SEC) setTimeout(() => stopRef.current?.(), 0); return s + 1; }), 1000);
     } catch { setNoMic(true); }
   };
   // Demo take for embedded previews where the mic is blocked. Remove before launch.
-  const startDemo = () => { setDemo(true); setNoMic(false); setStatus('recording'); setSec(0); secRef.current = 0; timer.current = setInterval(() => setSec((s) => { secRef.current = s + 1; return s + 1; }), 1000); };
-  const stop = () => { stopTimer(); if (demo) setTakes((ts) => [...ts, { blob: null, url: null, sec: Math.max(sec, 1) }]); else rec.current?.stop(); setStatus('done'); };
+  const startDemo = () => { setDemo(true); setNoMic(false); setStatus('recording'); setSec(0); secRef.current = 0; timer.current = setInterval(() => setSec((s) => { secRef.current = s + 1; if (s + 1 >= MAX_SEC) setTimeout(() => stopRef.current?.(), 0); return s + 1; }), 1000); };
+  const stop = () => { if (!timer.current) return; stopTimer(); if (demo) setTakes((ts) => [...ts, { blob: null, url: null, sec: Math.max(secRef.current, 1) }]); else rec.current?.stop(); setStatus('done'); };
+  stopRef.current = stop;
+  const hitMax = takes.length > 0 && takes[takes.length - 1].sec >= MAX_SEC;
   const redo = () => { stopTimer(); if (status === 'recording' && !demo) rec.current?.stop(); setTakes([]); setSec(0); secRef.current = 0; setDemo(false); setStatus('idle'); };
   const totalSec = takes.reduce((n, x) => n + x.sec, 0) + (status === 'recording' ? sec : 0);
   const last = takes[takes.length - 1];
@@ -86,8 +92,8 @@ export default function Record() {
           <div className="mt-14 mb-4 flex flex-col items-center">
             <button onClick={status === 'idle' ? start : stop} className={'rec-btn ' + (status === 'recording' ? 'on rec-ring' : '')} aria-pressed={status === 'recording'}>{status === 'idle' ? t('rec.start') : t('rec.stop')}</button>
             <div className="h-[56px] mt-6 text-[14.5px] text-ink-2 tabular-nums">
-              {status === 'idle' && <span>{t('rec.hint')}</span>}
-              {status === 'recording' && <><span className="text-rec">● {fmt(sec)}</span><span className="block text-ink-3 mt-1">{tip}</span></>}
+              {status === 'idle' && <span>{t('rec.hint')}<span className="block text-ink-3 mt-1">{zh ? '一段最长 3 分钟，讲不完可以再录一段。' : 'Up to 3 minutes per take; add another take if there is more.'}</span></span>}
+              {status === 'recording' && <><span className="text-rec">● {fmt(sec)}</span><span className="text-ink-3"> · {zh ? '还剩' : 'left'} {fmt(Math.max(MAX_SEC - sec, 0))}</span><span className={'block mt-1 ' + (sec >= WARN_SEC ? 'text-accent' : 'text-ink-3')}>{sec >= WARN_SEC ? (zh ? '快到 3 分钟了。说完这句就停，长的故事可以再录一段。' : 'Almost 3 minutes. Finish the thought; longer stories can continue in another take.') : tip}</span></>}
             </div>
           </div>
         )}
@@ -104,7 +110,7 @@ export default function Record() {
                 </div>
               ))}
             </div>
-            <p className="text-[12.5px] text-ink-3 mt-2 mb-0">{zh ? '几段会按顺序接成一个故事。' : 'Takes are joined in order into one story.'}</p>
+            <p className="text-[12.5px] text-ink-3 mt-2 mb-0">{hitMax ? (zh ? '到 3 分钟自动停了，这一段已经收好。还有话说就点"再录一段"，几段会按顺序接成一个故事。' : 'Stopped at 3 minutes and saved. Tap "Record another take" if there is more — takes are joined in order into one story.') : (zh ? '几段会按顺序接成一个故事。' : 'Takes are joined in order into one story.')}</p>
             <button className="btn btn-primary btn-lg w-full mt-6" onClick={proceed}>{t('rec.process')} →</button>
             <div className="flex justify-center gap-8 mt-5 text-[14px]"><button className="link-soft" onClick={demo ? startDemo : start}>{t('rec.again')}</button><button className="link-soft" onClick={redo}>{t('rec.redo')}</button></div>
           </div>
