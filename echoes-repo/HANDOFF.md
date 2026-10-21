@@ -141,3 +141,8 @@ Invite   { name, sub, perms:['read'|'correct'|'add'] }
 - **Back from Review** always goes to /home (or the story when editing) — never history-back into /processing. Processing redirects an already-tidied draft to /review instead of re-running.
 - **No sample story in real accounts.** A draft with no audio now shows an error; the 年糕 sample only appears in demo mode.
 - **Real take length.** Stories showed 4:12 for every recording (stale closure); fixed.
+
+## 2026-10-21 · Long recordings (fix5) — Helen hit HTTP 413
+- Vercel refuses request bodies over 4.5 MB, so audio no longer passes through `/api/tidy`. Processing now uploads the take to Storage first (under the story's final uuid), gets a 1-hour signed link, and sends the link. Saving reuses that path — no second upload. A take abandoned before saving leaves an orphan file under `audio/<family>/`; clean those up later (cheap).
+- ≤ 4.5 min → `qwen3-asr-flash` (synchronous, with dialect context). Longer → `qwen3-asr-flash-filetrans` (asynchronous): API answers 202 + taskId and the browser polls `GET /api/tidy?task=…` every 4 s. The Processing page says it may take a few minutes.
+- Base64 upload remains only for the demo/no-database path.

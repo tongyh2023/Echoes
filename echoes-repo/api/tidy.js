@@ -3,7 +3,11 @@
 //   DASHSCOPE_API_KEY  → Alibaba Model Studio (international): Qwen3-ASR-Flash (dialect-aware) + qwen-plus   ← preferred
 //   OPENAI_API_KEY     → OpenAI: whisper-1 + gpt-4o-mini                                                     ← fallback
 // Keys live only here; the browser never sees them. The front end always posts the same JSON regardless of provider.
-// Request:  POST { audio: <base64>, mime, question, profile: { name, hometown, birth, places, dialects }, lang: 'zh'|'en' }
+// Request:  POST { audioUrl: <https link to the recording>  — or —  audio: <base64, small clips only>, mime, durationSec, question, profile: { name, hometown, birth, places, dialects }, lang: 'zh'|'en' }
+//   The browser uploads the recording to Supabase Storage first and sends a signed link, so no audio passes through this function
+//   (Vercel caps request bodies at 4.5 MB → HTTP 413; base64 is only kept for the demo/no-database case).
+//   Short clips (≤ 4.5 min) → qwen3-asr-flash, one call. Longer → qwen3-asr-flash-filetrans, which is asynchronous:
+//   this returns 202 { taskId }, and the browser polls GET /api/tidy?task=<id>&… until it gets the story.
 // Response: { title, text: { first: [...], raw: [...] }, terms: [{ id, word, kind, note, status:'pending' }], topics, people, era, place, transcript, provider }
 
 export const config = { api: { bodyParser: { sizeLimit: '4mb' } } };
@@ -53,11 +57,11 @@ function asrContext({ question, profile, lang }) {
 }
 
 // ---- speech to text --------------------------------------------------------
-async function transcribeDashscope({ key, audio, mime, hint, lang }) {
-  // Qwen3-ASR-Flash: audio goes inside a message as a data URI; the system text biases spelling of names, places, dialect words.
+async function transcribeDashscope({ key, audio, audioUrl, mime, hint, lang }) {
+  // Qwen3-ASR-Flash: audio goes inside a message as a link or a data URI; the system text biases spelling of names, places, dialect words.
   const body = {
     model: 'qwen3-asr-flash',
-    input: { messages: [{ role: 'system', content: [{ text: hint || '' }] }, { role: 'user', content: [{ audio: `data:${mime};base64,${audio}` }] }] },
+    input: { messages: [{ role: 'system', content: [{ text: hint || '' }] }, { role: 'user', content: [{ audio: audioUrl || `data:${mime};base64,${audio}` }] }] },
     parameters: { asr_options: { enable_itn: true, ...(lang === 'zh' ? { language: 'zh' } : {}) } },
   };
   const r = await fetch(DASH + '/api/v1/services/aigc/multimodal-generation/generation', { method: 'POST', headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -78,6 +82,36 @@ async function transcribeOpenai({ key, audio, mime, hint, lang }) {
   return ((await r.json()).text || '').trim();
 }
 
+
+// ---- long recordings: asynchronous file transcription ---------------------
+// qwen3-asr-flash (synchronous) stops at 10 MB / 5 minutes. Elders talk longer than that, so anything over LONG_SEC goes to
+// qwen3-asr-flash-filetrans: submit the link, get a task id, poll until SUCCEEDED, then read the transcript JSON it points to.
+const LONG_SEC = 270;
+async function submitFiletrans({ key, audioUrl, lang, hint }) {
+  const headers = { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json', 'X-DashScope-Async': 'enable' };
+  const base = { model: 'qwen3-asr-flash-filetrans', input: { file_url: audioUrl } };
+  const params = { enable_itn: true, ...(lang === 'zh' ? { language: 'zh' } : {}) };
+  // `corpus.text` (context words) appears in Alibaba's samples but not in the parameter table — try with it, fall back without.
+  let r = await fetch(DASH + '/api/v1/services/audio/asr/transcription', { method: 'POST', headers, body: JSON.stringify({ ...base, parameters: { ...params, corpus: { text: hint || '' } } }) });
+  if (!r.ok) r = await fetch(DASH + '/api/v1/services/audio/asr/transcription', { method: 'POST', headers, body: JSON.stringify({ ...base, parameters: params }) });
+  if (!r.ok) throw new Error('Qwen3-ASR filetrans: ' + (await r.text()).slice(0, 300));
+  const j = await r.json(); const id = j?.output?.task_id;
+  if (!id) throw new Error('Qwen3-ASR filetrans: no task id');
+  return id;
+}
+// → { done: false } while running, { done: true, transcript } when finished; throws when the task failed.
+async function pollFiletrans({ key, taskId }) {
+  const r = await fetch(DASH + '/api/v1/tasks/' + encodeURIComponent(taskId), { headers: { Authorization: 'Bearer ' + key } });
+  if (!r.ok) throw new Error('Qwen3-ASR task: ' + (await r.text()).slice(0, 300));
+  const j = await r.json(); const st = j?.output?.task_status;
+  if (st === 'PENDING' || st === 'RUNNING') return { done: false };
+  if (st !== 'SUCCEEDED') throw new Error('Qwen3-ASR task ' + st + ': ' + (j?.output?.message || ''));
+  const url = j?.output?.result?.transcription_url; if (!url) throw new Error('Qwen3-ASR task: no transcription_url');
+  const t = await fetch(url).then((x) => x.json());
+  const text = (t?.transcripts || []).map((c) => c.text || '').join('\n');
+  return { done: true, transcript: String(text).trim() };
+}
+
 // ---- tidy into a story (both providers speak the OpenAI chat format) --------
 async function tidy({ url, key, model, transcript, question, profile }) {
   const user = `讲述者：${profile.name || ''}，${profile.birth ? profile.birth + ' 年生' : ''}，老家 ${profile.hometown || ''}，住过 ${(profile.places || []).join('、')}，方言 ${(profile.dialects || []).join('、') || '无'}。
@@ -92,19 +126,37 @@ ${transcript}`;
 }
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
   const dash = process.env.DASHSCOPE_API_KEY, oai = process.env.OPENAI_API_KEY;
   if (!dash && !oai) return res.status(500).json({ error: 'No AI key yet. In Vercel → Settings → Environment Variables add DASHSCOPE_API_KEY (Alibaba Model Studio) or OPENAI_API_KEY, then Redeploy.' });
   try {
-    const { audio, mime = 'audio/webm', question = '', profile = {}, lang = 'zh' } = req.body || {};
-    if (!audio) return res.status(400).json({ error: 'no audio' });
-    const hint = asrContext({ question, profile, lang });
+    let transcript, provider, question, profile, lang;
+    if (req.method === 'GET') {
+      // Polling a long transcription. The browser sends back the story context it sent at submit time.
+      const q = req.query || {};
+      if (!q.task) return res.status(400).json({ error: 'no task' });
+      const st = await pollFiletrans({ key: dash, taskId: String(q.task) });
+      if (!st.done) return res.status(202).json({ taskId: q.task, status: 'running' });
+      transcript = st.transcript; provider = 'qwen3-asr-flash-filetrans';
+      question = String(q.question || ''); lang = String(q.lang || 'zh');
+      try { profile = JSON.parse(String(q.profile || '{}')); } catch { profile = {}; }
+    } else if (req.method === 'POST') {
+      const b = req.body || {}; question = b.question || ''; profile = b.profile || {}; lang = b.lang || 'zh';
+      const { audio, audioUrl, mime = 'audio/webm', durationSec = 0 } = b;
+      if (!audio && !audioUrl) return res.status(400).json({ error: 'no audio' });
+      const hint = asrContext({ question, profile, lang });
+      if (dash && audioUrl && Number(durationSec) > LONG_SEC) {
+        const taskId = await submitFiletrans({ key: dash, audioUrl, lang, hint });
+        return res.status(202).json({ taskId, status: 'submitted' });
+      }
+      if (dash) {
+        try { transcript = await transcribeDashscope({ key: dash, audio, audioUrl, mime, hint, lang }); provider = 'qwen3-asr-flash'; }
+        catch (e) { if (!oai || !audio) throw e; transcript = await transcribeOpenai({ key: oai, audio, mime, hint, lang }); provider = 'whisper-1 (fallback: ' + e.message.slice(0, 80) + ')'; }
+      } else {
+        if (!audio) return res.status(400).json({ error: 'OpenAI fallback needs inline audio' });
+        transcript = await transcribeOpenai({ key: oai, audio, mime, hint, lang }); provider = 'whisper-1';
+      }
+    } else return res.status(405).json({ error: 'GET or POST' });
 
-    let transcript, provider;
-    if (dash) {
-      try { transcript = await transcribeDashscope({ key: dash, audio, mime, hint, lang }); provider = 'qwen3-asr-flash'; }
-      catch (e) { if (!oai) throw e; transcript = await transcribeOpenai({ key: oai, audio, mime, hint, lang }); provider = 'whisper-1 (fallback: ' + e.message.slice(0, 80) + ')'; }
-    } else { transcript = await transcribeOpenai({ key: oai, audio, mime, hint, lang }); provider = 'whisper-1'; }
     if (!transcript) return res.status(422).json({ error: 'empty transcript — nothing was heard in the recording' });
 
     const out = dash

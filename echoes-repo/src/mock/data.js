@@ -89,16 +89,32 @@ function annotate(paragraphs) {
 
 // Real pipeline when there is a real recording: POST it to /api/tidy (Vercel function → Whisper → GPT).
 // Falls back to the sample story only when there is no audio (demo take) or the function is unavailable (local file preview).
-async function tidyForReal({ audioBlob, question, profile, lang }) {
-  const b64 = await new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(',')[1]); r.onerror = no; r.readAsDataURL(audioBlob); });
-  const r = await fetch('/api/tidy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ audio: b64, mime: audioBlob.type || 'audio/webm', question, profile: { name: profile?.name, hometown: profile?.hometown, birth: profile?.birth, places: profile?.places, dialects: profile?.dialects, lang: profile?.lang }, lang }) });
-  if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.error || ('HTTP ' + r.status)); }
+async function tidyForReal({ audioBlob, audioUrl, durationSec = 0, question, profile, lang, onStatus }) {
+  const prof = { name: profile?.name, hometown: profile?.hometown, birth: profile?.birth, places: profile?.places, dialects: profile?.dialects, lang: profile?.lang };
+  const body = { mime: audioBlob?.type || 'audio/webm', durationSec, question, profile: prof, lang };
+  if (audioUrl) body.audioUrl = audioUrl;   // recording already in Storage → send the link, nothing big goes through the API
+  else body.audio = await new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(',')[1]); r.onerror = no; r.readAsDataURL(audioBlob); });
+  const fail = async (r) => { const d = await r.json().catch(() => ({})); throw new Error(d.error || (r.status === 413 ? (lang === 'zh' ? '录音太大，没能上传。请检查网络后再试一次。' : 'The recording was too large to send. Check your connection and try again.') : 'HTTP ' + r.status)); };
+  let r = await fetch('/api/tidy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  if (r.status === 202) {
+    // long recording: transcription runs on Alibaba's side; ask every few seconds until the story comes back
+    const { taskId } = await r.json(); onStatus?.('long'); const qs = new URLSearchParams({ task: taskId, question, lang, profile: JSON.stringify(prof) }).toString();
+    for (let i = 0; i < 200; i++) {
+      await wait(4000); onStatus?.('long');
+      r = await fetch('/api/tidy?' + qs);
+      if (r.status === 202) continue;
+      if (!r.ok) return fail(r);
+      return r.json();
+    }
+    throw new Error(lang === 'zh' ? '整理超时了，录音还在，请再试一次。' : 'Tidy-up timed out. The recording is safe; try again.');
+  }
+  if (!r.ok) return fail(r);
   return r.json();
 }
 
-export async function transcribeAndTidy({ audioBlob, typedText, question, profile, simulateFail, lang = 'zh', allowSample = true }) {
-  if (audioBlob instanceof Blob && audioBlob.size > 0 && typeof window !== 'undefined' && window.location.protocol.startsWith('http')) {
-    return tidyForReal({ audioBlob, question, profile, lang });   // errors surface on the Processing screen with a retry
+export async function transcribeAndTidy({ audioBlob, audioUrl, durationSec, typedText, question, profile, simulateFail, lang = 'zh', allowSample = true, onStatus }) {
+  if ((audioUrl || (audioBlob instanceof Blob && audioBlob.size > 0)) && typeof window !== 'undefined' && window.location.protocol.startsWith('http')) {
+    return tidyForReal({ audioBlob, audioUrl, durationSec, question, profile, lang, onStatus });   // errors surface on the Processing screen with a retry
   }
   await wait(1200);
   if (simulateFail) throw new Error('mock failure'); // type 失败 as the answer to see the error state

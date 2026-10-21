@@ -179,9 +179,10 @@ export function StoreProvider({ children }) {
       else {
         // New story: choose the id here so the recording can be uploaded FIRST under <family>/<story>.
         // If the upload fails the story is not inserted, so a retry never creates a duplicate.
-        const id = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : null;
+        const isUuid = (v) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(v || ''));
+        const id = isUuid(st.id) ? st.id : ((typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : null);
         let audioPath = st.audioPath || null;
-        if (st.audioUrl && st.audioUrl.startsWith('blob:')) {
+        if (!audioPath && st.audioUrl && st.audioUrl.startsWith('blob:')) {
           const blob = await fetch(st.audioUrl).then((r) => r.blob());
           if (blob.size > 0) audioPath = await db.uploadAudio(state.family.id, id, blob);
         }

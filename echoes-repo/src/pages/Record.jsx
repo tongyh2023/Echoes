@@ -5,6 +5,7 @@ import { useT } from '../lib/i18n';
 import { useStore, FREE_LIMIT } from '../lib/store';
 import { QUESTIONS, transcribeAndTidy } from '../mock/data';
 import { hasSupabase } from '../lib/supabase';
+import { uploadAudio, getAudioUrl } from '../lib/db';
 import { fillQ } from './Home';
 import { profileView } from '../lib/loc';
 
@@ -129,7 +130,7 @@ export default function Record() {
 
 export function Processing() {
   const { t, lang } = useT(); const zh = lang === 'zh'; const nav = useNavigate(); const { state, setDraft } = useStore();
-  const [step, setStep] = useState(0); const [failed, setFailed] = useState(false); const [err, setErr] = useState(''); const [attempt, setAttempt] = useState(0); const draft = state.draft; const p = state.profile;
+  const [step, setStep] = useState(0); const [failed, setFailed] = useState(false); const [err, setErr] = useState(''); const [attempt, setAttempt] = useState(0); const [long, setLong] = useState(false); const draft = state.draft; const p = state.profile;
   useEffect(() => {
     setFailed(false); setStep(0);
     if (!draft) { nav('/home', { replace: true }); return; }
@@ -137,14 +138,23 @@ export function Processing() {
     let alive = true;
     (async () => {
       setTimeout(() => alive && setStep(1), 700); setTimeout(() => alive && setStep(2), 1500);
-      let res;
+      let res; let id = 'new-' + Date.now(); let audioPath = null;
       try {
         const blob = draft.blob && draft.audioUrl ? await fetch(draft.audioUrl).then((r) => r.blob()) : null;
-        res = await transcribeAndTidy({ audioBlob: blob, typedText: draft.typed, question: draft.question, profile: p, simulateFail: false, lang, allowSample: state.demo || !hasSupabase });
+        const live = hasSupabase && !state.demo && state.family?.id;
+        let link = null;
+        if (live && blob && blob.size > 0) {
+          // 1. The recording goes to Storage first, under the id this story will keep. 2. The AI gets a temporary link, not the bytes.
+          id = crypto.randomUUID();
+          audioPath = await uploadAudio(state.family.id, id, blob);
+          link = await getAudioUrl(audioPath);
+        }
+        const [m, sec] = String(draft.duration || '0:00').split(':').map(Number);
+        res = await transcribeAndTidy({ audioBlob: blob, audioUrl: link, durationSec: (m || 0) * 60 + (sec || 0), typedText: draft.typed, question: draft.question, profile: p, simulateFail: false, lang, allowSample: state.demo || !hasSupabase, onStatus: (s) => alive && setLong(s === 'long') });
       } catch (e) { console.error('tidy failed:', e); if (alive) { setErr(String(e.message || e)); setFailed(true); } return; }
       if (!alive) return;
       setStep(3);
-      const story = { id: 'new-' + Date.now(), questionId: draft.questionId, question: draft.question, date: new Date().toISOString().slice(0, 10), duration: draft.duration, audioUrl: draft.audioUrl, published: false, media: [], style: 'narrative', ...res };
+      const story = { id, questionId: draft.questionId, question: draft.question, date: new Date().toISOString().slice(0, 10), duration: draft.duration, audioUrl: draft.audioUrl, audioPath, published: false, media: [], style: 'narrative', ...res };
       setDraft(story);
       setTimeout(() => alive && nav('/review'), 500);
     })();
@@ -156,7 +166,7 @@ export function Processing() {
       <div className="max-w-[560px] mx-auto pt-16">
         <div className="ed-caps mb-4">{zh ? '正在整理' : 'Tidying up'}</div>
         <h1 className="serif font-medium text-[32px] leading-[1.25] m-0 mb-3">{t('proc.title', { name: p?.mode === 'self' ? (zh ? '你' : 'your') : p?.name })}</h1>
-        <p className="text-ink-2 mb-10">{t('proc.sub')}</p>
+        <p className="text-ink-2 mb-10">{long ? (zh ? '这段录音比较长，整理需要几分钟。可以先去倒杯水，这一页会自己更新。' : 'This is a long recording — tidying takes a few minutes. This page updates by itself.') : t('proc.sub')}</p>
         {failed ? (
           <div className="border-t border-ink pt-5"><h2 className="h2 mb-2">{zh ? '这一次没能整理出来，录音没有丢。' : 'Tidy-up failed this time. The recording is safe.'}</h2><p className="text-ink-2 text-[14.5px] mb-2">{zh ? '通常是网络的问题。可以马上再试一次；如果还是不行，录音会留在草稿里。' : 'Usually a network hiccup. Try again; otherwise the recording stays in drafts.'}</p>{err && <p className="text-[12.5px] text-ink-3 mb-5 font-mono break-all">{err}</p>}<div className="flex items-center gap-6"><button className="btn btn-primary" onClick={() => setAttempt((a) => a + 1)}>{zh ? '再试一次' : 'Try again'}</button><button className="link-soft text-[14px]" onClick={() => nav('/home')}>{zh ? '先回故事页' : 'Back to stories'}</button></div></div>
         ) : (
