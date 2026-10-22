@@ -5,7 +5,7 @@ import { useT, LANGUAGES } from '../lib/i18n';
 import { useStore } from '../lib/store';
 import { postView } from '../lib/loc';
 
-// A community story on its own page (no modal): read, react, comment, repost, follow — then back to the community or on to the author.
+// A community story on its own page (no modal): read and like — then back to the community or on to the author.
 // If the post is one of this family's own stories, the real story page (with audio) is where it opens instead.
 export default function Read() {
   const { t, lang } = useT(); const zh = lang === 'zh'; const nav = useNavigate(); const { id } = useParams(); const loc = useLocation();
@@ -42,12 +42,6 @@ export default function Read() {
           <section className="mt-12 border-t border-ink pt-5">
             <div className="flex items-center gap-7 text-[14.5px]">
               <button className={'cursor-pointer ' + (po.liked ? 'text-rec' : 'hover:text-ink text-ink-2')} onClick={() => likePost(po.id, !po.liked).catch(() => nav('/login'))}>{po.liked ? '♥' : '♡'} {po.likes}</button>
-              <span className="text-ink-2">{t('community.comment')} {po.commentCount ?? po.comments.length}</span>
-              <button className={'cursor-pointer ' + (po.reposted ? 'text-accent' : 'hover:text-ink text-ink-2')} onClick={() => { updatePost(po.id, (x) => ({ ...x, reposted: !x.reposted, reposts: x.reposts + (x.reposted ? -1 : 1) })); toast(po.reposted ? (zh ? '已取消转发' : 'Repost removed') : (zh ? '已转发到你们家的空间' : 'Reposted to your family space')); }}>↻ {po.reposts}</button>
-            </div>
-            <div className="mt-6 grid gap-4">
-              {po.comments.map((c, i) => <div key={i} className="flex gap-3 items-baseline text-[15px]"><Avatar name={c.who} size="w-7 h-7 text-[11px]" /><span><b className="font-medium">{c.who}</b> <span className="text-ink-2">{c.text}</span></span></div>)}
-              <div className="flex gap-4 items-end"><input className="field flex-1 text-[15px]" value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={t('community.write')} onKeyDown={(e) => e.key === 'Enter' && comment()} /><button className="btn btn-sm" disabled={!draft.trim()} onClick={comment}>{t('community.post')}</button></div>
             </div>
           </section>
         </article>

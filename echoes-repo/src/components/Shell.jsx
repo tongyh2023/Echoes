@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useT } from '../lib/i18n';
 import { useStore } from '../lib/store';
-import { getAudioUrl } from '../lib/db';
+import { getAudioUrl, loadNotifications } from '../lib/db';
+import { hasSupabase } from '../lib/supabase';
 import { Mark } from './Illos';
 
 export function LangToggle() {
@@ -44,6 +45,22 @@ export default function Shell({ children, nav = true }) {
   const nav_ = useNavigate();
   const p = state.profile; const fam = useFamilyName();
   const show = nav && !!p;
+  // Unread likes / reactions on our stories. Checked when the page changes and every minute.
+  const loc = useLocation(); const [unread, setUnread] = useState(0);
+  const liveUser = hasSupabase && !state.demo && state.userId;
+  useEffect(() => {
+    if (!show || !liveUser) return;
+    let alive = true;
+    const check = () => loadNotifications().then((n) => alive && setUnread(n.filter((x) => x.unread).length)).catch(() => {});
+    check(); const id = setInterval(check, 60000);
+    return () => { alive = false; clearInterval(id); };
+  }, [show, liveUser, loc.pathname]);
+  const Bell = () => (
+    <button onClick={() => nav_('/notifications')} className="relative cursor-pointer ed-caps hover:!text-ink" title={t('nav.notifications')} aria-label={t('nav.notifications')}>
+      <span className="text-[17px] leading-none">♡</span>
+      {unread > 0 && <span className="absolute -top-2 -right-3 min-w-[18px] h-[18px] px-1 rounded-full bg-rec text-white text-[10.5px] leading-[18px] text-center tracking-normal">{unread > 9 ? '9+' : unread}</span>}
+    </button>
+  );
   const cls = ({ isActive }) => 'ed-caps py-1 transition-colors ' + (isActive ? '!text-ink' : 'hover:!text-ink');
   const sty = ({ isActive }) => ({ borderBottom: '1px solid ' + (isActive ? 'var(--color-ink)' : 'transparent') });
   return (
@@ -60,6 +77,7 @@ export default function Shell({ children, nav = true }) {
           )}
           <div className="flex-1" />
           {show && <button className="btn btn-accent btn-sm hidden sm:inline-flex" onClick={() => nav_('/pick')}>{t('nav.record')}</button>}
+          {show && liveUser && <Bell />}
           <LangToggle />
           {!p && !state.signedIn && <button className="link-soft text-[13.5px]" onClick={() => nav_('/login')}>{t('auth.login')}</button>}
           {p && <button onClick={() => nav_('/settings')} title={t('nav.settings')} className="cursor-pointer"><Avatar name={state.email ? state.email.split('@')[0] : '我'} src={state.meAvatar} size="w-8 h-8 text-[13px]" /></button>}

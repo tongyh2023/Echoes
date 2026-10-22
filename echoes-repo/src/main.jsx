@@ -18,6 +18,7 @@ import Family from './pages/Family';
 import Community from './pages/Community';
 import Person from './pages/Person';
 import Read from './pages/Read';
+import Notifications from './pages/Notifications';
 import Settings, { Upgrade } from './pages/Settings';
 import { InviteLanding, SharedList, SharedStory } from './pages/Invitee';
 import { NotFound, Deleted } from './pages/Misc';
@@ -104,6 +105,7 @@ function App() {
       <Route path="/read/:id" element={<Read />} />
       <Route path="/family" element={<Guard><Family /></Guard>} />
       <Route path="/community" element={<Community />} />
+      <Route path="/notifications" element={<Guard><Notifications /></Guard>} />
       <Route path="/settings" element={<Guard><Settings /></Guard>} />
       <Route path="/upgrade" element={<Guard><Upgrade /></Guard>} />
       <Route path="*" element={<NotFound />} />

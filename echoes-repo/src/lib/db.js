@@ -272,13 +272,26 @@ const feedRowToPost = (r, myFamilyId) => {
     title: r.title || '', excerpt: paras.join(' ').slice(0, 90) + (paras.join(' ').length > 90 ? '…' : ''), body: paras,
     terms: r.terms || [], lang: r.lang || 'zh', topics: r.topics || [], era: r.era || '', place: r.place || '',
     date: (r.created_at || '').slice(0, 10), readMin: Math.max(1, Math.round(paras.join('').length / 400)),
-    image: null, cover: 'warm', likes: r.likes || 0, liked: Boolean(r.liked), comments: [], commentCount: r.comments || 0, reposts: 0,
+    image: null, photo: r.photo || null, cover: 'warm', likes: r.likes || 0, liked: Boolean(r.liked),
   };
 };
 
 export async function loadFeed(myFamilyId) {
   const rows = unwrap(await supabase.rpc('community_feed'));
-  return (rows || []).map((r) => feedRowToPost(r, myFamilyId));
+  const posts = (rows || []).map((r) => feedRowToPost(r, myFamilyId));
+  // The first photo of each published story: sign a link (storage allows it once the story is published).
+  await Promise.all(posts.filter((p) => p.photo).map(async (p) => { p.image = await getAudioUrl(p.photo).catch(() => null); }));
+  return posts;
+}
+
+// ---------- notifications ----------
+// Likes from the community and reactions from family members on our stories, newest first.
+export async function loadNotifications() {
+  const rows = unwrap(await supabase.rpc('my_notifications'));
+  return (rows || []).map((r) => ({ kind: r.kind, storyId: r.story_id, title: r.story_title || '', who: r.who || '', emoji: r.emoji || null, at: r.created_at, unread: Boolean(r.unread) }));
+}
+export async function markNotificationsSeen(userId) {
+  unwrap(await supabase.from('profiles').update({ notif_seen_at: new Date().toISOString() }).eq('id', userId));
 }
 
 export async function loadComments(storyId) {

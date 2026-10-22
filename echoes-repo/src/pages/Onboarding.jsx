@@ -59,8 +59,10 @@ export function Profile() {
           <div><label className="label">{self ? t('profile.nameSelf') : t('profile.nameOther')}</label><input className="input" value={f.name} onChange={(e) => set('name', e.target.value)} placeholder={self ? t('profile.ph.nameSelf') : t('profile.ph.nameOther')} /></div>
           {!self && <div><label className="label">{t('profile.relation')}</label><input className="input" value={f.relation} onChange={(e) => set('relation', e.target.value)} placeholder={t('profile.ph.relation')} /></div>}
           <div><label className="label">{t('profile.birth')}</label><input className="input" value={f.birth} onChange={(e) => set('birth', e.target.value)} placeholder={t('profile.ph.birth')} /></div>
+          <div><label className="label">{t('profile.country')}</label><input className="input" list="echoes-countries" value={f.country || ''} onChange={(e) => set('country', e.target.value)} placeholder={t('profile.ph.country')} />
+            <datalist id="echoes-countries">{(lang === 'zh' ? ['中国', '中国香港', '中国台湾', '加拿大', '美国', '英国', '澳大利亚', '新西兰', '新加坡', '马来西亚', '日本', '韩国'] : ['China', 'Hong Kong', 'Taiwan', 'Canada', 'United States', 'United Kingdom', 'Australia', 'New Zealand', 'Singapore', 'Malaysia', 'Japan', 'Korea']).map((c) => <option key={c} value={c} />)}</datalist></div>
           <div><label className="label">{t('profile.hometown')}</label><input className="input" value={f.hometown} onChange={(e) => set('hometown', e.target.value)} placeholder={t('profile.ph.hometown')} /></div>
-          <div className={self ? '' : 'col-span-2'}><label className="label">{t('profile.livesIn')}</label><input className="input" value={f.livesIn} onChange={(e) => set('livesIn', e.target.value)} placeholder={t('profile.ph.livesIn')} /></div>
+          <div className={self ? 'col-span-2' : ''}><label className="label">{t('profile.livesIn')}</label><input className="input" value={f.livesIn} onChange={(e) => set('livesIn', e.target.value)} placeholder={t('profile.ph.livesIn')} /></div>
         </div>
 
         <div className="mt-6">
