@@ -63,12 +63,31 @@ export default function Record() {
     const merged = blobs.length > 1 ? new Blob(blobs, { type: blobs[0].type }) : blobs[0] || null;   // several takes → one recording, in order
     setDraft({ questionId: q.id, question: q.text, audioUrl: merged ? URL.createObjectURL(merged) : null, duration: fmt(totalSec), pending: true, blob: !!merged, typed: '' }); nav('/processing');
   };
-  const onUpload = (e) => {
+  // Uploaded files arrive in every container under the sun (WeChat exports, voice memos, trimmed clips). Whatever the
+  // browser can play, it can also decode — so every upload is re-encoded here to plain 16 kHz mono WAV before it goes
+  // anywhere. One format for the speech model, real length known, and the 3-minute rule applies to uploads too.
+  const toWav = async (file) => {
+    const ac = new (window.AudioContext || window.webkitAudioContext)();
+    const decoded = await ac.decodeAudioData(await file.arrayBuffer()); ac.close?.();
+    const rate = 16000, len = Math.ceil(decoded.duration * rate);
+    const off = new OfflineAudioContext(1, len, rate); const src = off.createBufferSource(); src.buffer = decoded; src.connect(off.destination); src.start();
+    const mono = (await off.startRendering()).getChannelData(0);
+    const buf = new ArrayBuffer(44 + mono.length * 2); const v = new DataView(buf);
+    const w = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+    w(0, 'RIFF'); v.setUint32(4, 36 + mono.length * 2, true); w(8, 'WAVE'); w(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, 'data'); v.setUint32(40, mono.length * 2, true);
+    for (let i = 0; i < mono.length; i++) { const s = Math.max(-1, Math.min(1, mono[i])); v.setInt16(44 + i * 2, s < 0 ? s * 0x8000 : s * 0x7FFF, true); }
+    const blob = new Blob([buf], { type: 'audio/wav' }); blob.name = 'upload.wav';
+    return { blob, sec: Math.round(decoded.duration) };
+  };
+  const onUpload = async (e) => {
     const f = e.target.files?.[0]; if (!f) return; setUploadErr('');
     if (f.size > 200 * 1024 * 1024) { setUploadErr(zh ? '这个文件超过 200MB。可以分成几段，或者先压缩。' : 'Over 200MB. Split it or compress it first.'); return; }
-    if (!f.type.startsWith('audio')) { setUploadErr(zh ? '只能上传音频（m4a、mp3、wav、webm）。' : 'Audio only (m4a, mp3, wav, webm).'); return; }
+    let out;
+    try { out = await toWav(f); }
+    catch { setUploadErr(zh ? '这个文件打不开。请换成 mp3、m4a 或 wav 再试；微信语音要先用手机"导出"成音频文件。' : 'This file could not be opened. Try mp3, m4a or wav; WeChat voice notes must be exported as an audio file first.'); return; }
+    if (out.sec > MAX_SEC + 5) { setUploadErr(zh ? `这段有 ${Math.floor(out.sec / 60)} 分 ${out.sec % 60} 秒。一段最长 3 分钟，请先剪短，或者分成几段分别上传。` : `This clip is ${Math.floor(out.sec / 60)}m ${out.sec % 60}s. A take is at most 3 minutes — trim it, or upload it in parts.`); return; }
     stopTimer(); if (status === 'recording' && !demo) rec.current?.stop(); setDemo(false);
-    setTakes([{ blob: f, url: URL.createObjectURL(f), sec: 240 }]); setStatus('done');
+    setTakes([{ blob: out.blob, url: URL.createObjectURL(out.blob), sec: out.sec }]); setStatus('done');
   };
   const tip = TIPS[lang][Math.floor(sec / 15) % TIPS[lang].length];
   // Back = where you came from (stories, question bank, a story's follow-up…), never a fixed page. A take in progress asks first.
@@ -127,7 +146,7 @@ export default function Record() {
         {status === 'idle' && (
           <p className="text-[14px] text-ink-3 mt-6">{zh ? '已经用手机或电话录好了？' : 'Already recorded on a phone?'} <button className="link-soft" onClick={() => fileRef.current.click()}>{t('rec.uploadBtn')}</button></p>
         )}
-        <input ref={fileRef} type="file" accept="audio/*" className="hidden" onChange={onUpload} />
+        <input ref={fileRef} type="file" accept="audio/*,.m4a,.mp3,.wav,.aac,.amr,.ogg,.opus,.wma,.caf,.mp4" className="hidden" onChange={onUpload} />
         {uploadErr && <p className="text-[13.5px] text-rec mt-3">{uploadErr}</p>}
       </div>
     </Shell>

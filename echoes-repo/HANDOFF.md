@@ -151,3 +151,4 @@ Invite   { name, sub, perms:['read'|'correct'|'add'] }
 ## 2026-10-22 · Uploaded files (fix7) — "audio format is illegal"
 - An uploaded MP3 was stored as `.webm` (the extension map only knew mp4/ogg/wav), and the speech model refused it. `extFor` now covers mp3/m4a/wav/flac/ogg/webm and falls back to the file's own name; the Storage content-type matches.
 - For short clips `/api/tidy` now downloads the file from the signed link itself and sends bytes with an explicit media type, instead of handing the link to the model. Long clips (> 4.5 min) still go to filetrans by link.
+- **Uploads are re-encoded in the browser** (fix8): any file the browser can play is decoded and written out as 16 kHz mono WAV before upload, so the speech model always gets one known format; files over 3 minutes are refused with the length shown; files the browser cannot open get a clear message (WeChat voice notes must be exported first).
