@@ -91,7 +91,15 @@ export function StoreProvider({ children }) {
   }, [state.userId, state.demo]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Family name shown in the header: the real one, or derived from the first storyteller's surname.
-  const familyNameFor = (p) => (p?.name ? p.name.slice(0, 1) + '家' : '我们家');
+  // 童明德 → 童家 · Grandpa Tong → Tong 家 · Helen → Helen 家. Chinese names: first character is the surname.
+  // Western-order names: the last word. The family can rename it on the Family page at any time.
+  const familyNameFor = (p) => {
+    const n = String(p?.name || '').trim(); if (!n) return '我们家';
+    if (/^[\u3400-\u9fff]/.test(n)) return n.slice(0, 1) + '家';
+    const words = n.replace(/[^\p{L}\p{N}\s'-]/gu, ' ').trim().split(/\s+/).filter((w) => !/^(grandpa|grandma|grandfather|grandmother|uncle|aunt|auntie|mr|mrs|ms|dr|mom|dad|mum|papa|mama|nainai|yeye|waipo|waigong|popo|gonggong|laolao|laoye)$/i.test(w));
+    const last = words[words.length - 1] || n;
+    return last.slice(0, 1).toUpperCase() + last.slice(1) + ' 家';
+  };
 
   const api = {
     state: { ...state, profile, stories, familyName: state.family?.name || state.familyName },
@@ -125,7 +133,7 @@ export function StoreProvider({ children }) {
     // into the signed-in family through the database, flagged demo=true so they can be removed later.
     seedDemo: async () => {
       if (!live) { setState((s) => ({ ...s, signedIn: true, demo: true, verified: true, email: 'shaojing@example.com', storytellers: [{ ...DEFAULT_PROFILE, id: 'st-demo' }], activeId: 'st-demo', stories: SEED_STORIES.map((x) => ({ ...x, storytellerId: 'st-demo' })) })); return; }
-      let family = state.family; if (!family) family = await db.createFamily(DEFAULT_PROFILE.name.slice(0, 1) + '家');
+      let family = state.family; if (!family) family = await db.createFamily(familyNameFor(DEFAULT_PROFILE));
       let teller = state.storytellers.find((t) => t.demo) || null;
       if (!teller) teller = await db.addStoryteller(family.id, { ...DEFAULT_PROFILE, demo: true });
       const rows = [];
@@ -175,7 +183,7 @@ export function StoreProvider({ children }) {
       const exists = state.stories.some((x) => x.id === st.id);
       if (!live) { setState((s) => ({ ...s, draft: null, stories: exists ? s.stories.map((x) => (x.id === st.id ? st : x)) : [st, ...s.stories] })); return st; }
       let saved;
-      if (exists) saved = await db.updateStory(st.id, st);
+      if (exists) saved = await db.updateStory(st.id, { ...st, media: await db.persistMedia(state.family.id, st.id, st.media) });
       else {
         // New story: choose the id here so the recording can be uploaded FIRST under <family>/<story>.
         // If the upload fails the story is not inserted, so a retry never creates a duplicate.
@@ -186,7 +194,8 @@ export function StoreProvider({ children }) {
           const blob = await fetch(st.audioUrl).then((r) => r.blob());
           if (blob.size > 0) audioPath = await db.uploadAudio(state.family.id, id, blob);
         }
-        saved = await db.insertStory(state.family.id, state.userId, { ...st, id, audioPath });
+        const media = await db.persistMedia(state.family.id, id, st.media);
+        saved = await db.insertStory(state.family.id, state.userId, { ...st, id, audioPath, media });
       }
       // keep the in-memory preview URL for this session so playback is instant right after saving
       const merged = { ...saved, audioUrl: st.audioUrl || saved.audioUrl };
@@ -197,7 +206,7 @@ export function StoreProvider({ children }) {
       setState((s) => ({ ...s, stories: s.stories.map((x) => (x.id === id ? { ...x, ...patch } : x)) }));
       if (!live) return;
       const cur = state.stories.find((x) => x.id === id); if (!cur) return;
-      try { const saved = await db.updateStory(id, { ...cur, ...patch }); setState((s) => ({ ...s, stories: s.stories.map((x) => (x.id === id ? { ...saved, audioUrl: x.audioUrl } : x)) })); }
+      try { const media = patch.media ? await db.persistMedia(state.family.id, id, patch.media) : cur.media; const saved = await db.updateStory(id, { ...cur, ...patch, media }); setState((s) => ({ ...s, stories: s.stories.map((x) => (x.id === id ? { ...saved, audioUrl: x.audioUrl } : x)) })); }
       catch (e) { console.error('[echoes] update story failed', e); }
     },
     deleteStory: async (id) => { const cur = state.stories.find((x) => x.id === id); setState((s) => ({ ...s, stories: s.stories.filter((x) => x.id !== id) })); if (live) { await db.deleteStory(id); try { await db.deleteAudio(cur?.audioPath); } catch {} } },

@@ -226,6 +226,26 @@ export async function uploadAudio(familyId, storyId, blob) {
   return path;
 }
 
+// Photos / videos attached to a story live in the same private bucket, under the family folder so the same
+// policies apply: <family>/media/<story>/<id>.<ext>. The row keeps { id, kind, name, path }; links are signed on view.
+export async function uploadMedia(familyId, storyId, file) {
+  const ext = (file.name || '').split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '') || (file.type.split('/')[1] || 'bin');
+  const id = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).slice(2);
+  const path = `${familyId}/media/${storyId}/${id}.${ext}`;
+  unwrap(await supabase.storage.from('audio').upload(path, file, { contentType: file.type || 'application/octet-stream', upsert: false }));
+  return path;
+}
+// Replace every still-local item (has a File, no path) with its uploaded form. Items already in storage pass through.
+export async function persistMedia(familyId, storyId, media) {
+  const out = [];
+  for (const m of media || []) {
+    if (m.path || !m.file) { const { file, url, ...rest } = m; out.push(m.path ? rest : m); continue; }
+    const path = await uploadMedia(familyId, storyId, m.file);
+    out.push({ id: m.id, kind: m.kind, name: m.name, path });
+  }
+  return out;
+}
+
 // A temporary link (1 hour) to play a recording. Supabase checks the policy before issuing it,
 // so someone outside the family gets an error here, not a URL. Links are cached per page load.
 const urlCache = new Map();
