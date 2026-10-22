@@ -72,14 +72,14 @@ export default function Review() {
             {polishing && <span className="text-ink-3">{t('review.polishing')}</span>}
             <span className="flex-1" />
             <div className="relative"><button className="link-soft" onClick={() => setMore((v) => !v)}>{zh ? '更多' : 'More'} ▾</button>
-              {more && <div className="menu !left-auto !right-0"><button onClick={polishAll}>{t('review.polish')}</button><button onClick={() => { setShowRaw((v) => !v); setMore(false); }}>{showRaw ? t('review.hideRaw') : t('review.raw')}</button><button onClick={() => { setShowMedia(true); setMore(false); }}>{zh ? '添加照片 / 视频' : 'Add photos / video'}</button></div>}
+              {more && <div className="menu !left-auto !right-0"><button onClick={polishAll}>{t('review.polish')}</button><button onClick={() => { setShowRaw((v) => !v); setMore(false); }}>{showRaw ? t('review.hideRaw') : t('review.raw')}</button></div>}
             </div>
           </div>
           <StoryText paragraphs={paras} terms={story.terms} active={active} onTerm={(tm) => tm && setActive(tm.id)} editable={editing} onChange={setPara} />
           {showRaw && <div className="mt-6 border-l-2 border-line pl-5"><div className="ed-caps mb-2">{t('review.rawTitle')}</div><div className="story text-[15px] leading-[1.8] text-ink-2" style={{ maxWidth: 'none' }}>{(story.text.raw || paras).map((p, i) => <p key={i}>{p.replace(/[\[\]]/g, '')}</p>)}</div></div>}
           <div className="mt-8"><Audio label={t('review.original')} dur={story.duration} src={story.audioUrl} path={story.audioPath} /></div>
           <p className="text-[12.5px] text-ink-3 mt-2">{t('review.keepHint')}{story.provider && <span className="ml-2 opacity-70">· {zh ? '由' : 'by'} {story.provider}</span>}</p>
-          {(showMedia || story.media?.length > 0) && <div className="mt-8"><div className="ed-caps mb-3">{t('review.media')}</div><MediaPanel media={story.media} onChange={(m) => update({ media: m })} compact /></div>}
+          <div className="mt-8"><MediaPanel media={story.media || []} onChange={(m) => update({ media: m })} /></div>
         </article>
       )} aside={(
         <div className="aside-block">

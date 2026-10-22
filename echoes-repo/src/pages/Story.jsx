@@ -37,7 +37,7 @@ export default function Story() {
           <StoryText paragraphs={story.text.first} terms={story.terms} mode="glossary" />
           {story.terms.some((x) => x.status === 'ok') && <p className="text-[12.5px] text-ink-3 mt-1">{t('story.glossary')}</p>}
           {pending > 0 && <p className="mt-5 text-[13.5px] text-ink-2 border-l-2 border-accent pl-4">{zh ? `${pending} 处注释还没确认，确认后才会显示给读者。` : `${pending} note(s) pending — they show to readers once confirmed.`} <button className="link ml-2" onClick={() => nav('/story/' + story.id + '/edit')}>{zh ? '去确认' : 'Review'} →</button></p>}
-          {story.media?.length > 0 && <div className="mt-8"><div className="ed-caps mb-3">{t('story.media')}</div><MediaPanel media={story.media} onChange={(m) => updateStory(story.id, { media: m })} compact /></div>}
+          <div className="mt-10"><MediaPanel media={story.media || []} onChange={(m) => updateStory(story.id, { media: m })} autosave /></div>
 
           {/* family */}
           <section className="mt-14 border-t border-ink pt-5">
@@ -70,7 +70,7 @@ export default function Story() {
           <div className="bg-paper border border-ink p-8 max-w-[480px] w-full" onClick={(e) => e.stopPropagation()}>
             <div className="ed-caps mb-3">{zh ? '发布前' : 'Before publishing'}</div>
             <h2 className="h2 mb-3">{p.mode === 'self' ? (zh ? '确定公开这个故事吗？' : 'Make this story public?') : (zh ? `${p.name}知道并同意公开这个故事吗？` : `Does ${p.name} know and agree to publish this?`)}</h2>
-            <p className="text-ink-2 text-[14.5px] mb-5">{zh ? '发布后其他家庭能看到文字和已确认的注释，可以评论和转发；原声只对家人开放。随时可以取消发布，转发的副本会一起撤回。' : 'Other families will see the text and confirmed notes and can comment and repost; audio stays family-only. You can unpublish any time and reposts are withdrawn.'}{p.mode !== 'self' && (zh ? ' 这是他的故事和声音——请先问过他。' : ' It is their story — ask first.')}</p>
+            <p className="text-ink-2 text-[14.5px] mb-5">{zh ? '发布后其他家庭能看到文字、照片和已确认的注释，可以点赞；原声只对家人开放。随时可以取消发布。' : 'Other families will see the text, photos and confirmed notes and can like it; audio stays family-only. You can unpublish any time.'}{p.mode !== 'self' && (zh ? ' 这是他的故事和声音——请先问过他。' : ' It is their story — ask first.')}</p>
             <label className="flex items-start gap-3 text-[14.5px] mb-6 cursor-pointer"><input type="checkbox" className="mt-1.5 accent-ink" checked={agree} onChange={(e) => setAgree(e.target.checked)} />{p.mode === 'self' ? (zh ? '我确认公开这个故事。' : 'I confirm I want this story public.') : (zh ? `我已经问过${p.name}，他同意公开这个故事。` : `I asked ${p.name} and they agree.`)}</label>
             <div className="flex items-center gap-6 justify-end"><button className="link-soft text-[14px]" onClick={() => setConsent(false)}>{t('common.cancel')}</button><button className="btn btn-primary" disabled={!agree} onClick={async () => { setConsent(false); setAgree(false); await publish(raw, true); nav('/read/' + (live ? story.id : 'c-' + story.id), { state: { published: true } }); }}>{t('story.publish')}</button></div>
           </div>

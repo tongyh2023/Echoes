@@ -207,7 +207,7 @@ export function StoreProvider({ children }) {
       if (!live) return;
       const cur = state.stories.find((x) => x.id === id); if (!cur) return;
       try { const media = patch.media ? await db.persistMedia(state.family.id, id, patch.media) : cur.media; const saved = await db.updateStory(id, { ...cur, ...patch, media }); setState((s) => ({ ...s, stories: s.stories.map((x) => (x.id === id ? { ...saved, audioUrl: x.audioUrl } : x)) })); }
-      catch (e) { console.error('[echoes] update story failed', e); }
+      catch (e) { console.error('[echoes] update story failed', e); if (patch.media) throw e; }
     },
     deleteStory: async (id) => { const cur = state.stories.find((x) => x.id === id); setState((s) => ({ ...s, stories: s.stories.filter((x) => x.id !== id) })); if (live) { await db.deleteStory(id); try { await db.deleteAudio(cur?.audioPath); } catch {} } },
     // Publish to the community = set published on the story row; unpublish = clear it.

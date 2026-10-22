@@ -12,7 +12,6 @@ export default function Read() {
   const { state, updatePost, publish, likePost, commentPost, loadComments, live } = useStore();
   const raw = state.posts.find((p) => p.id === id); const po = raw ? postView(raw, lang) : null;
   const [draft, setDraft] = useState(''); const [follow, setFollow] = useState(false); const [toast, toastEl] = useToast();
-  useEffect(() => { if (live && po && !po.comments.length && po.commentCount) loadComments(po.id); }, [po?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   // Opened by direct link: the feed may still be loading from the database — wait before deciding it's gone.
   if (!po && live && !(state.dataReady && state.feedReady)) return null;
   if (!po) { nav('/community', { replace: true }); return null; }
