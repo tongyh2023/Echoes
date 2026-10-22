@@ -147,3 +147,7 @@ Invite   { name, sub, perms:['read'|'correct'|'add'] }
 - ≤ 4.5 min → `qwen3-asr-flash` (synchronous, with dialect context). Longer → `qwen3-asr-flash-filetrans` (asynchronous): API answers 202 + taskId and the browser polls `GET /api/tidy?task=…` every 4 s. The Processing page says it may take a few minutes.
 - Base64 upload remains only for the demo/no-database path.
 - **3-minute takes (MVP).** `MAX_SEC = 180` in `Record.jsx`: countdown next to the timer, a warning at 2:30, automatic stop at 3:00 with the take kept; more takes can be added and are joined in order. Raise the constant when the family tests say so.
+
+## 2026-10-22 · Uploaded files (fix7) — "audio format is illegal"
+- An uploaded MP3 was stored as `.webm` (the extension map only knew mp4/ogg/wav), and the speech model refused it. `extFor` now covers mp3/m4a/wav/flac/ogg/webm and falls back to the file's own name; the Storage content-type matches.
+- For short clips `/api/tidy` now downloads the file from the signed link itself and sends bytes with an explicit media type, instead of handing the link to the model. Long clips (> 4.5 min) still go to filetrans by link.

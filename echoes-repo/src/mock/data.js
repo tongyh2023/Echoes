@@ -91,7 +91,7 @@ function annotate(paragraphs) {
 // Falls back to the sample story only when there is no audio (demo take) or the function is unavailable (local file preview).
 async function tidyForReal({ audioBlob, audioUrl, durationSec = 0, question, profile, lang, onStatus }) {
   const prof = { name: profile?.name, hometown: profile?.hometown, birth: profile?.birth, places: profile?.places, dialects: profile?.dialects, lang: profile?.lang };
-  const body = { mime: audioBlob?.type || 'audio/webm', durationSec, question, profile: prof, lang };
+  const body = { mime: audioBlob?.type || 'audio/webm', name: audioBlob?.name || '', durationSec, question, profile: prof, lang };
   if (audioUrl) body.audioUrl = audioUrl;   // recording already in Storage → send the link, nothing big goes through the API
   else body.audio = await new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(',')[1]); r.onerror = no; r.readAsDataURL(audioBlob); });
   const fail = async (r) => { const d = await r.json().catch(() => ({})); throw new Error(d.error || (r.status === 413 ? (lang === 'zh' ? '录音太大，没能上传。请检查网络后再试一次。' : 'The recording was too large to send. Check your connection and try again.') : 'HTTP ' + r.status)); };

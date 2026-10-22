@@ -57,11 +57,25 @@ function asrContext({ question, profile, lang }) {
 }
 
 // ---- speech to text --------------------------------------------------------
+const MIME_BY_EXT = { mp3: 'audio/mpeg', m4a: 'audio/mp4', mp4: 'audio/mp4', wav: 'audio/wav', flac: 'audio/flac', ogg: 'audio/ogg', opus: 'audio/ogg', webm: 'audio/webm', aac: 'audio/aac' };
+const extOf = (url) => (String(url).split('?')[0].match(/\.([a-z0-9]+)$/i) || [])[1]?.toLowerCase();
+// Fetch the recording ourselves and hand the model bytes with an explicit media type. The storage link is only a way to
+// get the file into this function without going through the 4.5 MB request limit.
+async function fetchAudio(audioUrl) {
+  const r = await fetch(audioUrl);
+  if (!r.ok) throw new Error('could not download the recording (' + r.status + ')');
+  const buf = Buffer.from(await r.arrayBuffer());
+  const ct = (r.headers.get('content-type') || '').split(';')[0].trim();
+  const mime = MIME_BY_EXT[extOf(audioUrl)] || (ct.startsWith('audio/') ? ct : 'audio/webm');
+  return { audio: buf.toString('base64'), mime, bytes: buf.length };
+}
 async function transcribeDashscope({ key, audio, audioUrl, mime, hint, lang }) {
-  // Qwen3-ASR-Flash: audio goes inside a message as a link or a data URI; the system text biases spelling of names, places, dialect words.
+  // Qwen3-ASR-Flash: audio goes inside a message as a data URI; the system text biases spelling of names, places, dialect words.
+  if (audioUrl) { const f = await fetchAudio(audioUrl); audio = f.audio; mime = f.mime; }
+  if (mime === 'audio/x-m4a') mime = 'audio/mp4';
   const body = {
     model: 'qwen3-asr-flash',
-    input: { messages: [{ role: 'system', content: [{ text: hint || '' }] }, { role: 'user', content: [{ audio: audioUrl || `data:${mime};base64,${audio}` }] }] },
+    input: { messages: [{ role: 'system', content: [{ text: hint || '' }] }, { role: 'user', content: [{ audio: `data:${mime};base64,${audio}` }] }] },
     parameters: { asr_options: { enable_itn: true, ...(lang === 'zh' ? { language: 'zh' } : {}) } },
   };
   const r = await fetch(DASH + '/api/v1/services/aigc/multimodal-generation/generation', { method: 'POST', headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });

@@ -207,11 +207,22 @@ export async function removeReaction(storyId, userId, emoji) {
 // The bucket's policies (001_schema.sql) read the first path segment and ask
 // "is the caller a member of that family?" — so the path IS the permission.
 
-const extFor = (type = '') => (type.includes('mp4') || type.includes('m4a') || type.includes('aac') ? 'm4a' : type.includes('ogg') ? 'ogg' : type.includes('wav') ? 'wav' : 'webm');
+// Storage key extension must match the real container: the speech model refuses an MP3 that is called .webm.
+const extFor = (type = '', name = '') => {
+  const t = type.toLowerCase(), n = name.toLowerCase();
+  if (t.includes('mpeg') || t.includes('mp3') || n.endsWith('.mp3')) return 'mp3';
+  if (t.includes('mp4') || t.includes('m4a') || t.includes('aac') || n.endsWith('.m4a') || n.endsWith('.mp4')) return 'm4a';
+  if (t.includes('wav') || n.endsWith('.wav')) return 'wav';
+  if (t.includes('flac') || n.endsWith('.flac')) return 'flac';
+  if (t.includes('ogg') || t.includes('opus') || n.endsWith('.ogg') || n.endsWith('.opus')) return 'ogg';
+  return 'webm';
+};
+const MIME = { mp3: 'audio/mpeg', m4a: 'audio/mp4', wav: 'audio/wav', flac: 'audio/flac', ogg: 'audio/ogg', webm: 'audio/webm' };
 
 export async function uploadAudio(familyId, storyId, blob) {
-  const path = `${familyId}/${storyId}.${extFor(blob.type)}`;
-  unwrap(await supabase.storage.from('audio').upload(path, blob, { contentType: blob.type || 'audio/webm', upsert: true }));
+  const ext = extFor(blob.type, blob.name || '');
+  const path = `${familyId}/${storyId}.${ext}`;
+  unwrap(await supabase.storage.from('audio').upload(path, blob, { contentType: MIME[ext], upsert: true }));
   return path;
 }
 
