@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { DEFAULT_PROFILE, SEED_STORIES, COMMUNITY_POSTS } from '../mock/data';
-import { hasSupabase } from './supabase';
+import { hasSupabase, supabase } from './supabase';
 import * as db from './db';
 
 // App state. Real mode: everything comes from Supabase (see lib/db.js) and lives in React state only.
@@ -16,7 +16,7 @@ const loadActive = () => { try { return sessionStorage.getItem(ACTIVE); } catch 
 // Keep the current selection if it still exists (or the one remembered in this tab), else the first storyteller.
 const pickActive = (tellers, current) => { const want = current || loadActive(); return tellers.some((t) => t.id === want) ? want : (tellers[0]?.id || null); };
 const storeDraft = (d) => { try { if (d) sessionStorage.setItem(DRAFT, JSON.stringify({ ...d, blob: false })); else sessionStorage.removeItem(DRAFT); } catch {} };
-export const FREE_LIMIT = 10;
+export const FREE_LIMIT = 20;   // MVP: 20 stories free, then the Family plan
 
 const fresh = () => ({
   signedIn: false, email: '', verified: false, plan: 'free',
@@ -48,12 +48,13 @@ const clearPendingInvite = () => { try { sessionStorage.removeItem(PENDING); } c
 // empty on failure, so one missing table (a migration not yet run) never hides the whole family.
 async function loadFamilyData(family) {
   const safe = (p, fallback) => p.catch((e) => { console.warn('[echoes] load failed', e?.message || e); return fallback; });
-  if (!family) return { storytellers: [], members: [], inviteCodes: [], stories: [], customQuestions: [], reactions: {} };
-  const [storytellers, members, inviteCodes, stories, customQuestions, reactions] = await Promise.all([
+  if (!family) return { storytellers: [], members: [], inviteCodes: [], stories: [], customQuestions: [], reactions: {}, plan: 'free' };
+  const [storytellers, members, inviteCodes, stories, customQuestions, reactions, billing] = await Promise.all([
     safe(db.loadStorytellers(family.id), []), safe(db.loadMembers(family.id), []), safe(db.loadInvites(family.id), []),
     safe(db.loadStories(family.id), []), safe(db.loadQuestions(family.id), []), safe(db.loadReactions(family.id), {}),
+    safe(db.loadBilling(family.id), null),
   ]);
-  return { storytellers, members, inviteCodes, stories, customQuestions, reactions };
+  return { storytellers, members, inviteCodes, stories, customQuestions, reactions, plan: billing?.plan === 'family' ? 'family' : 'free', billing };
 }
 
 export function StoreProvider({ children }) {
@@ -79,8 +80,16 @@ export function StoreProvider({ children }) {
     (async () => {
       try {
         // Someone who signed up through an invite link: join that family first, then load it.
-        const pending = getPendingInvite();
-        if (pending) { try { await db.joinFamily(pending); } catch (e) { console.warn('[echoes] pending invite failed', e); } clearPendingInvite(); }
+        // The code is in this tab's sessionStorage, or — when the person confirmed their email in another tab —
+        // on the account (saved at sign-up). Used once, then cleared from both places.
+        let pending = getPendingInvite(); let fromAccount = false;
+        if (!pending) { const { data } = await supabase.auth.getUser(); pending = data?.user?.user_metadata?.invite || null; fromAccount = Boolean(pending); }
+        if (pending) {
+          const already = await db.loadMyFamily().catch(() => null);
+          if (!already) { try { await db.joinFamily(pending); } catch (e) { console.warn('[echoes] pending invite failed', e); } }
+          clearPendingInvite();
+          supabase.auth.updateUser({ data: { invite: null } }).catch(() => {});
+        }
         const family = await db.loadMyFamily();
         const data = await loadFamilyData(family);
         const posts = await db.loadFeed(family?.id).catch((e) => { console.warn('[echoes] feed failed', e?.message || e); return []; });
@@ -148,7 +157,9 @@ export function StoreProvider({ children }) {
       const teller = state.storytellers.find((t) => t.demo); if (teller) await db.deleteStoryteller(teller.id);
       await api.reloadFamily();
     },
-    setPlan: (plan) => setState((s) => ({ ...s, plan })),
+    setPlan: (plan) => { if (!live) setState((s) => ({ ...s, plan })); },   // demo only; real plans come from Stripe
+    // Re-read the plan (after returning from Stripe Checkout the webhook may take a few seconds).
+    refreshBilling: async () => { if (!live || !state.family) return null; const b = await db.loadBilling(state.family.id).catch(() => null); setState((s) => ({ ...s, billing: b, plan: b?.plan === 'family' ? 'family' : 'free' })); return b; },
     setFamilyName: async (familyName) => {
       if (live && state.family) { await db.renameFamily(state.family.id, familyName); setState((s) => ({ ...s, family: { ...s.family, name: familyName } })); return; }
       setState((s) => ({ ...s, familyName }));
@@ -209,7 +220,7 @@ export function StoreProvider({ children }) {
       try { const media = patch.media ? await db.persistMedia(state.family.id, id, patch.media) : cur.media; const saved = await db.updateStory(id, { ...cur, ...patch, media }); setState((s) => ({ ...s, stories: s.stories.map((x) => (x.id === id ? { ...saved, audioUrl: x.audioUrl } : x)) })); }
       catch (e) { console.error('[echoes] update story failed', e); if (patch.media) throw e; }
     },
-    deleteStory: async (id) => { const cur = state.stories.find((x) => x.id === id); setState((s) => ({ ...s, stories: s.stories.filter((x) => x.id !== id) })); if (live) { await db.deleteStory(id); try { await db.deleteAudio(cur?.audioPath); } catch {} } },
+    deleteStory: async (id) => { const cur = state.stories.find((x) => x.id === id); setState((s) => ({ ...s, stories: s.stories.filter((x) => x.id !== id) })); if (live) { await db.deleteStory(id); try { await db.deleteFiles([cur?.audioPath, ...(cur?.media || []).map((m) => m.path)]); } catch {} } },
     // Publish to the community = set published on the story row; unpublish = clear it.
     publish: async (story, on) => {
       if (live) {

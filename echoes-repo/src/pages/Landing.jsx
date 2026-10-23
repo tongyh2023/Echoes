@@ -157,7 +157,7 @@ export default function Landing() {
       {/* ---------- 05 faq ---------- */}
       <section id="faq" className="scroll-mt-24 section ed-hair">
         <div className="ed-wrap grid md:grid-cols-[0.7fr_1.3fr] gap-12">
-          <div><SectionHead n={4} eyebrow={c.faqEyebrow} title={c.faqT} lang={lang} /><p className="text-ink-2 -mt-6">{zh ? '没找到答案？' : 'Something else?'} <a href="mailto:hello@echoes.app" className="ed-link !text-[14px]">hello@echoes.app</a></p></div>
+          <div><SectionHead n={4} eyebrow={c.faqEyebrow} title={c.faqT} lang={lang} /><p className="text-ink-2 -mt-6">{zh ? '没找到答案？' : 'Something else?'} <a href="mailto:hello@echoestory.com" className="ed-link !text-[14px]">hello@echoestory.com</a></p></div>
           <div className="ed-faq">
             {c.faq.map(([q, a], i) => (
               <div key={q} className="ed-hair py-5">

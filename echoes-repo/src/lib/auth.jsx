@@ -55,7 +55,8 @@ export function AuthProvider({ children }) {
     // With it ON, session is null until the user clicks the link in the email.
     signUp: async (email, password, name) => {
       if (!hasSupabase) { store.signIn(email); return { needsEmailConfirm: false }; }
-      const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { name: name || email.split('@')[0] }, emailRedirectTo: window.location.origin + '/login' } });
+      let invite = null; try { invite = sessionStorage.getItem('echoes-pending-invite'); } catch {}
+      const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { name: name || email.split('@')[0], ...(invite ? { invite } : {}) }, emailRedirectTo: window.location.origin + '/login' } });
       if (error) throw error;
       return { needsEmailConfirm: !data.session };
     },

@@ -228,7 +228,27 @@ export async function uploadAudio(familyId, storyId, blob) {
 
 // Photos / videos attached to a story live in the same private bucket, under the family folder so the same
 // policies apply: <family>/media/<story>/<id>.<ext>. The row keeps { id, kind, name, path }; links are signed on view.
+// Photos are redrawn in the browser before upload. Redrawing keeps only the pixels, so the
+// camera's hidden details (GPS location, device, time) are dropped — published photos are
+// public. Also caps the long edge at 2560px. GIFs and video are uploaded as they are.
+export async function cleanPhoto(file) {
+  if (!/^image\/(jpeg|png|webp|heic|heif)$/i.test(file.type || '') || typeof createImageBitmap !== 'function') return file;
+  try {
+    const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' });
+    const k = Math.min(1, 2560 / Math.max(bmp.width, bmp.height));
+    const w = Math.round(bmp.width * k), h = Math.round(bmp.height * k);
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    c.getContext('2d').drawImage(bmp, 0, 0, w, h); bmp.close?.();
+    const png = /png/i.test(file.type);
+    const blob = await new Promise((r) => c.toBlob(r, png ? 'image/png' : 'image/jpeg', 0.9));
+    if (!blob) return file;
+    const base = (file.name || 'photo').replace(/\.[^.]+$/, '');
+    return new File([blob], `${base}.${png ? 'png' : 'jpg'}`, { type: blob.type });
+  } catch { return file; }
+}
+
 export async function uploadMedia(familyId, storyId, file) {
+  file = await cleanPhoto(file);
   const ext = (file.name || '').split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '') || (file.type.split('/')[1] || 'bin');
   const id = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).slice(2);
   const path = `${familyId}/media/${storyId}/${id}.${ext}`;
@@ -316,4 +336,31 @@ export async function setPublished(storyId, on) {
 
 export async function deleteStoryteller(id) {
   unwrap(await supabase.from('storytellers').delete().eq('id', id));
+}
+
+// ---------- billing ----------
+// The plan is decided on the server (Stripe webhook → family_billing). The browser only reads it.
+export async function loadBilling(familyId) {
+  const rows = unwrap(await supabase.from('family_billing').select('plan, status, current_period_end').eq('family_id', familyId).limit(1));
+  return rows?.[0] || null;
+}
+const authHeader = async () => { const { data } = await supabase.auth.getSession(); return data?.session?.access_token ? { Authorization: 'Bearer ' + data.session.access_token } : {}; };
+// { mode: 'stripe' | 'waitlist', price? }
+export async function billingInfo() {
+  const r = await fetch('/api/checkout'); if (!r.ok) return { mode: 'waitlist' };
+  return r.json();
+}
+export async function startCheckout(familyId) {
+  const r = await fetch('/api/checkout', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeader()) }, body: JSON.stringify({ familyId }) });
+  const d = await r.json().catch(() => ({})); if (!r.ok || !d.url) throw new Error(d.error || 'HTTP ' + r.status);
+  return d.url;
+}
+export async function openPortal(familyId) {
+  const r = await fetch('/api/portal', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeader()) }, body: JSON.stringify({ familyId }) });
+  const d = await r.json().catch(() => ({})); if (!r.ok || !d.url) throw new Error(d.error || 'HTTP ' + r.status);
+  return d.url;
+}
+export async function joinWaitlist(email, userId, familyId) {
+  const { error } = await supabase.from('waitlist').insert({ email: String(email).trim().toLowerCase(), user_id: userId, family_id: familyId || null });
+  if (error && error.code !== '23505') throw error;   // already on the list = fine
 }

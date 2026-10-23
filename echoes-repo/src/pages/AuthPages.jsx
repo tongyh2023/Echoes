@@ -56,6 +56,8 @@ export function SignUp() {
 export function LogIn() {
   const { t, lang } = useT(); const zh = lang === 'zh'; const nav = useNavigate(); const auth = useAuth(); const { state } = useStore();
   const [email, setEmail] = useState(''); const [pw, setPw] = useState(''); const [err, setErr] = useState(''); const [busy, setBusy] = useState(false);
+  // Arriving from the "confirm your email" link signs the person in automatically — move them on once their data is loaded.
+  useEffect(() => { if (auth.user && state.userId === auth.user.id && state.dataReady) nav(state.profile ? '/home' : '/mode', { replace: true }); }, [auth.user, state.userId, state.dataReady, state.profile]); // eslint-disable-line react-hooks/exhaustive-deps
   const go = async () => {
     if (!email || !pw) return setErr(zh ? '邮箱和密码都要填。' : 'Email and password are both required.');
     setErr(''); setBusy(true);

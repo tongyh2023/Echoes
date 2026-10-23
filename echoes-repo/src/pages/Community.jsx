@@ -78,7 +78,7 @@ export default function Community() {
           <div className="aside-block"><div className="ed-caps mb-3">{zh ? '显示' : 'Show'}</div><div className="grid gap-2 text-[14px]"><button className={mineOnly ? 'link-soft w-fit' : 'link w-fit'} onClick={() => setMineOnly(false)}>{t('community.all')}</button><button className={mineOnly ? 'link w-fit' : 'link-soft w-fit'} onClick={() => setMineOnly(true)}>{t('community.mine')}</button></div></div>
           <div className="aside-block"><div className="ed-caps mb-3">{t('community.lang')}</div><div className="grid gap-2 text-[14px]">{langs.map((c) => <button key={c} className={(filter === c ? 'link' : 'link-soft') + ' w-fit'} onClick={() => setFilter(c)}>{label(c)}</button>)}</div></div>
           <div className="aside-block"><div className="ed-caps mb-3">{t('community.topics')}</div><div className="chips text-[14px]">{topics.map((x) => <button key={x} className={'chip ' + (topic === x ? 'on' : '')} onClick={() => setTopic(topic === x ? null : x)}>{x}</button>)}</div></div>
-          <p className="text-[12.5px] text-ink-3 mt-7 mb-0">{t('community.consentNote')} <a href="mailto:hello@echoes.app" className="link-soft">{t('community.tellUs')}</a></p>
+          <p className="text-[12.5px] text-ink-3 mt-7 mb-0">{t('community.consentNote')} <a href="mailto:hello@echoestory.com" className="link-soft">{t('community.tellUs')}</a></p>
         </>
       )} />
 
