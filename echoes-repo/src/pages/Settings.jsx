@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Shell, { Avatar, Narrow } from '../components/Shell';
 import { useT, LANGUAGES } from '../lib/i18n';
-import { useStore, FREE_LIMIT } from '../lib/store';
+import { useStore, FREE_LIMIT, tellerIsMine } from '../lib/store';
 import { useAuth } from '../lib/auth';
 import { profileView } from '../lib/loc';
 import { billingInfo, startCheckout, openPortal, joinWaitlist } from '../lib/db';
@@ -32,7 +32,7 @@ export default function Settings() {
             {state.storytellers.map((s0) => { const s = profileView(s0, lang); return (
               <div key={s.id} className="flex items-center gap-3 sm:gap-4 border-b border-line py-4">
                 <Avatar name={s.name} src={s.avatar} size="w-11 h-11 text-[15px]" me={s.id === state.activeId && !s.avatar} onPick={(url) => updateStoryteller(s.id, { avatar: url })} />
-                <span className="flex-1 min-w-0"><span className="block font-medium">{s.name} <span className="text-[12px] text-ink-3 font-normal">{s.mode === 'self' ? (zh ? '· 我自己' : '· myself') : s.relation ? `· ${zh ? '我的' : 'my '}${s.relation}` : ''}</span></span><span className="block text-[12.5px] text-ink-2 truncate">{s.hometown} · {LANGUAGES.find((l) => l.code === s.lang)?.label}{s.dialects?.length ? ' · ' + s.dialects.join('、') : ''} · {allStories.filter((x) => x.storytellerId === s.id).length} {zh ? '个故事' : 'stories'}</span></span>
+                <span className="flex-1 min-w-0"><span className="block font-medium">{s.name} <span className="text-[12px] text-ink-3 font-normal">{tellerIsMine(s0, state) ? (s.mode === 'self' ? (zh ? '· 我自己' : '· myself') : s.relation ? `· ${zh ? '我的' : 'my '}${s.relation}` : '') : (s.mode === 'self' ? (zh ? '· 自己讲述' : '· tells their own story') : s.relation ? `· ${s.relation}` : '')}</span></span><span className="block text-[12.5px] text-ink-2 truncate">{s.hometown} · {LANGUAGES.find((l) => l.code === s.lang)?.label}{s.dialects?.length ? ' · ' + s.dialects.join('、') : ''} · {allStories.filter((x) => x.storytellerId === s.id).length} {zh ? '个故事' : 'stories'}</span></span>
                 {s.id === state.activeId ? <span className="ed-caps">{zh ? '当前' : 'Active'}</span> : <button className="link-soft text-[13.5px]" onClick={() => setActive(s.id)}>{zh ? '切换' : 'Switch'}</button>}
                 <button className="link-soft text-[13.5px]" onClick={() => nav('/profile?mode=' + s.mode + '&edit=' + s.id)}>{zh ? '编辑' : 'Edit'}</button>
               </div>

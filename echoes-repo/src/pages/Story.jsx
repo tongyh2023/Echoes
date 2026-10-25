@@ -4,7 +4,7 @@ import Shell, { Audio, PageHeader, TwoCol, useToast } from '../components/Shell'
 import StoryText from '../components/StoryText';
 import MediaPanel from '../components/MediaPanel';
 import { useT } from '../lib/i18n';
-import { useStore } from '../lib/store';
+import { useStore, tellerIsMine } from '../lib/store';
 import { storyView, profileView } from '../lib/loc';
 import { translateStory } from '../lib/db';
 
@@ -16,7 +16,8 @@ export default function Story() {
   const { state, publish, updateStory, react, addQuestion, live, allStories } = useStore();
   const raw = allStories.find((s) => s.id === id); const story = storyView(raw, lang);
   // The storyteller of THIS story (not whoever is selected at the moment).
-  const p = profileView(state.storytellers.find((x) => x.id === raw?.storytellerId) || state.profile || {}, lang);
+  const teller = state.storytellers.find((x) => x.id === raw?.storytellerId) || state.profile || {};
+  const p = profileView({ ...teller, isSelf: teller.mode === 'self' && tellerIsMine(teller, state) }, lang);
   const [consent, setConsent] = useState(false); const [agree, setAgree] = useState(false); const [share, setShare] = useState(false); const [ask, setAsk] = useState('');
   const [toast, toastEl] = useToast();
   const [tr, setTr] = useState(null); const [showTr, setShowTr] = useState(false); const [trBusy, setTrBusy] = useState(false);
@@ -97,9 +98,9 @@ export default function Story() {
         <div className="fixed inset-0 z-30 bg-ink/40 flex items-center justify-center p-5" onClick={() => setConsent(false)}>
           <div className="bg-card border border-line rounded-[4px] shadow-[var(--shadow-card)] p-8 max-w-[480px] w-full" onClick={(e) => e.stopPropagation()}>
             <div className="ed-caps mb-3">{zh ? '发布前' : 'Before publishing'}</div>
-            <h2 className="h2 mb-3">{p.mode === 'self' ? (zh ? '确定公开这个故事吗？' : 'Make this story public?') : (zh ? `${p.name}知道并同意公开这个故事吗？` : `Does ${p.name} know and agree to publish this?`)}</h2>
+            <h2 className="h2 mb-3">{p.isSelf ? (zh ? '确定公开这个故事吗？' : 'Make this story public?') : (zh ? `${p.name}知道并同意公开这个故事吗？` : `Does ${p.name} know and agree to publish this?`)}</h2>
             <p className="text-ink-2 text-[14.5px] mb-5">{zh ? '发布后其他家庭能看到文字、照片和已确认的注释，可以点赞；原声只对家人开放。随时可以取消发布。' : 'Other families will see the text, photos and confirmed notes and can like it; audio stays family-only. You can unpublish any time.'}{p.mode !== 'self' && (zh ? ' 这是他的故事和声音——请先问过他。' : ' It is their story — ask first.')}</p>
-            <label className="flex items-start gap-3 text-[14.5px] mb-6 cursor-pointer"><input type="checkbox" className="mt-1.5 accent-primary" checked={agree} onChange={(e) => setAgree(e.target.checked)} />{p.mode === 'self' ? (zh ? '我确认公开这个故事。' : 'I confirm I want this story public.') : (zh ? `我已经问过${p.name}，他同意公开这个故事。` : `I asked ${p.name} and they agree.`)}</label>
+            <label className="flex items-start gap-3 text-[14.5px] mb-6 cursor-pointer"><input type="checkbox" className="mt-1.5 accent-primary" checked={agree} onChange={(e) => setAgree(e.target.checked)} />{p.isSelf ? (zh ? '我确认公开这个故事。' : 'I confirm I want this story public.') : (zh ? `我已经问过${p.name}，他同意公开这个故事。` : `I asked ${p.name} and they agree.`)}</label>
             <div className="flex items-center gap-6 justify-end"><button className="link-soft text-[14px]" onClick={() => setConsent(false)}>{t('common.cancel')}</button><button className="btn btn-primary" disabled={!agree} onClick={async () => { setConsent(false); setAgree(false); await publish(raw, true); nav('/read/' + (live ? story.id : 'c-' + story.id), { state: { published: true } }); }}>{t('story.publish')}</button></div>
           </div>
         </div>

@@ -79,7 +79,7 @@ export default function Pick() {
       {sel && (
         <div className="fixed inset-0 z-30 bg-ink/40 flex items-center justify-center p-5" onClick={() => setSel(null)}>
           <div className="bg-card border border-line rounded-[4px] shadow-[var(--shadow-card)] p-8 max-w-[560px] w-full" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-baseline justify-between mb-4"><span className="ed-caps">{t('rec.eyebrow', { name: p.mode === 'self' ? (zh ? '你' : 'yourself') : p.name })}</span><button className="ed-caps hover:!text-ink cursor-pointer" onClick={() => setSel(null)}>{zh ? '关闭' : 'Close'} ✕</button></div>
+            <div className="flex items-baseline justify-between mb-4"><span className="ed-caps">{t('rec.eyebrow', { name: p.isSelf ? (zh ? '你' : 'yourself') : p.name })}</span><button className="ed-caps hover:!text-ink cursor-pointer" onClick={() => setSel(null)}>{zh ? '关闭' : 'Close'} ✕</button></div>
             {editing ? (
               <>
                 <textarea className="input serif font-medium text-[22px] leading-[1.5] min-h-[120px]" value={draft} onChange={(e) => setDraft(e.target.value)} autoFocus />

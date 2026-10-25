@@ -28,7 +28,7 @@ export default function Record() {
   const p = profileView(state.profile, lang); const q = useQuestion();
   const [uploadErr, setUploadErr] = useState('');
   useEffect(() => { if (state.plan === 'free' && allStories.length >= FREE_LIMIT) nav('/upgrade?why=limit', { replace: true }); }, []);
-  const who = p.mode === 'self' ? (zh ? '你' : 'yourself') : p.name;
+  const who = p.isSelf ? (zh ? '你' : 'yourself') : p.name;
   const [status, setStatus] = useState('idle'); // idle | recording | done
   const [sec, setSec] = useState(0); const [takes, setTakes] = useState([]);
   const [noMic, setNoMic] = useState(false); const [demo, setDemo] = useState(false);
@@ -190,7 +190,7 @@ export function Processing() {
     <Shell>
       <div className="max-w-[560px] mx-auto pt-16">
         <div className="ed-caps mb-4">{zh ? '正在整理' : 'Tidying up'}</div>
-        <h1 className="serif font-medium text-[32px] leading-[1.25] m-0 mb-3">{t('proc.title', { name: p?.mode === 'self' ? (zh ? '你' : 'your') : p?.name })}</h1>
+        <h1 className="serif font-medium text-[32px] leading-[1.25] m-0 mb-3">{t('proc.title', { name: p?.isSelf ? (zh ? '你' : 'your') : p?.name })}</h1>
         <p className="text-ink-2 mb-10">{long ? (zh ? '这段录音比较长，整理需要几分钟。可以先去倒杯水，这一页会自己更新。' : 'This is a long recording — tidying takes a few minutes. This page updates by itself.') : t('proc.sub')}</p>
         {failed ? (
           <div className="border-t border-ink pt-5"><h2 className="h2 mb-2">{zh ? '这一次没能整理出来，录音没有丢。' : 'Tidy-up failed this time. The recording is safe.'}</h2><p className="text-ink-2 text-[14.5px] mb-2">{zh ? '通常是网络的问题。可以马上再试一次；如果还是不行，录音会留在草稿里。' : 'Usually a network hiccup. Try again; otherwise the recording stays in drafts.'}</p>{err && <p className="text-[12.5px] text-ink-3 mb-5 font-mono break-all">{err}</p>}<div className="flex items-center gap-6"><button className="btn btn-primary" onClick={() => setAttempt((a) => a + 1)}>{zh ? '再试一次' : 'Try again'}</button><button className="link-soft text-[14px]" onClick={() => nav('/home')}>{zh ? '先回故事页' : 'Back to stories'}</button></div></div>

@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import Shell, { PageHeader, TwoCol } from '../components/Shell';
 import { useT } from '../lib/i18n';
 import { useStore, FREE_LIMIT } from '../lib/store';
-const BOOK_GOAL = 20;   // "towards a book" — deliberately not the free limit, so it reads as a goal, not a wall
 import { QUESTIONS } from '../mock/data';
 import { storyView, profileView, qView } from '../lib/loc';
 
@@ -35,11 +34,11 @@ export default function Home() {
   const facets = many ? [...new Set(stories.flatMap((s) => [...s.topics, ...(s.people || []), s.era, s.place]).filter(Boolean))] : [];
   const list = stories.filter((s) => { const hay = [s.title, ...s.topics, ...(s.people || []), s.era, s.place, ...s.text.first].join(' '); return (!f || hay.includes(f)) && (!q || hay.toLowerCase().includes(q.toLowerCase())); });
   const n = allStories.length; const left = FREE_LIMIT - n;
-  const who = p.mode === 'self' ? (zh ? '你' : 'you') : p.name;
+  const who = p.isSelf ? (zh ? '你' : 'you') : p.name;
 
   return (
     <Shell>
-      <PageHeader eyebrow={(p.mode === 'self' ? (zh ? '我的故事' : 'My stories') : p.name + ' · ' + p.hometown + ' · ' + p.birth)} title={stories.length ? t('nav.stories') : (zh ? '还没有故事。从这一个开始。' : 'No stories yet. Start with this one.')} />
+      <PageHeader eyebrow={(p.isSelf ? (zh ? '我的故事' : 'My stories') : p.name + ' · ' + p.hometown + ' · ' + p.birth)} title={stories.length ? t('nav.stories') : (zh ? '还没有故事。从这一个开始。' : 'No stories yet. Start with this one.')} />
 
       {/* next question */}
       <section className="grid md:grid-cols-[1fr_300px] gap-12 items-start mb-16">
@@ -54,9 +53,11 @@ export default function Home() {
           </div>
         </div>
         <div className="aside-block md:mt-1">
-          <div className="ed-caps mb-3">{zh ? '攒成一本' : 'Towards a book'}</div>
-          <div className="tally mb-3 flex-wrap">{Array.from({ length: BOOK_GOAL }).map((_, i) => <i key={i} className={i < n ? 'on' : ''} />)}</div>
-          <p className="text-[14px] text-ink-2 m-0 leading-relaxed">{zh ? <>已有 <b className="text-ink">{n}</b> 个故事。攒到 {BOOK_GOAL} 个，就够做成一本小书了。随时可以在设置里导出 PDF。</> : <><b className="text-ink">{n}</b> stories so far. At {BOOK_GOAL} there is enough for a small book — export it as a PDF any time from Settings.</>}</p>
+          {/* The story book: export works any time, with any number of stories. Free plan shows its 10-story allowance. */}
+          <div className="ed-caps mb-3">{zh ? '我们的故事书' : 'Your story book'}</div>
+          {state.plan === 'free' && <div className="tally mb-3 flex-wrap" aria-label={zh ? `免费额度已用 ${n} / ${FREE_LIMIT}` : `${n} of ${FREE_LIMIT} free stories`}>{Array.from({ length: FREE_LIMIT }).map((_, i) => <i key={i} className={i < n ? 'on' : ''} />)}</div>}
+          <p className="text-[14px] text-ink-2 m-0 leading-relaxed">{zh ? <>已有 <b className="text-ink">{n}</b> 个故事，随时可以导出成一本 PDF 故事书。</> : <><b className="text-ink">{n}</b> {n === 1 ? 'story' : 'stories'} so far — export them as a PDF story book any time.</>}</p>
+          {n > 0 && <button className="link text-[13.5px] mt-3" onClick={() => nav('/book')}>{zh ? '导出 PDF 故事书' : 'Export the PDF book'} →</button>}
           {state.plan === 'free' && left <= 3 && <p className="text-[13px] text-ink-3 mt-3 mb-0">{left > 0 ? (zh ? `免费额度还剩 ${left} 个。` : `${left} free stories left.`) : (zh ? `免费的 ${FREE_LIMIT} 个已用完。` : `All ${FREE_LIMIT} free stories used.`)} <button className="link-soft" onClick={() => nav('/upgrade')}>{zh ? '看看家庭版' : 'Family plan'}</button></p>}
         </div>
       </section>

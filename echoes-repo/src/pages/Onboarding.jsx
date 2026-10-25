@@ -54,7 +54,7 @@ export function Profile() {
   return (
     <Shell nav={false}>
       <Narrow className="pt-6">
-        {existing ? <button className="ed-caps hover:!text-ink cursor-pointer mb-6 block" onClick={() => nav(-1)}>{t('nav.back')}</button> : <button className="ed-caps hover:!text-ink cursor-pointer mb-6 block" onClick={() => nav('/mode')}>{t('nav.back')}</button>}
+        {existing ? <button className="ed-caps hover:!text-ink cursor-pointer mb-6 block" onClick={() => nav(-1)}>{t('nav.back')}</button> : <button className="ed-caps hover:!text-ink cursor-pointer mb-6 block" onClick={() => nav(qs.get('add') ? '/mode?add=1' : '/mode')}>{t('nav.back')}</button>}
         <div className="ed-caps mb-3">{existing ? t('profile.editTitle') : t('profile.step2')}</div>
         <h1 className="serif font-medium text-[34px] leading-[1.25] m-0 mb-3">{existing ? existing.name : self ? t('profile.titleSelf') : t('profile.titleOther')}</h1>
         <p className="text-ink-2 mb-7">{t('profile.sub')} {!live && <button className="link-soft text-[13px]" onClick={fill}>{t('profile.fill')}</button>}</p>

@@ -17,7 +17,11 @@ const loadActive = () => { try { return sessionStorage.getItem(ACTIVE); } catch 
 const pickActive = (tellers, current) => { const want = current || loadActive(); return tellers.some((t) => t.id === want) ? want : (tellers[0]?.id || null); };
 const storeDraft = (d) => { try { if (d) sessionStorage.setItem(DRAFT, JSON.stringify({ ...d, blob: false })); else sessionStorage.removeItem(DRAFT); } catch {} };
 export const FREE_LIMIT = 10;   // free plan: 10 stories, 1 storyteller, 1 invited family member
-export const FREE_MEMBERS = 2;   // you + 1 family member on the free plan (server enforces it too, migration 011)
+export const FREE_MEMBERS = 2;
+// Who added this storyteller? "myself" / "my grandpa" only make sense to that person — other family members
+// see the same storyteller from their own point of view. Older storytellers (before createdBy was saved)
+// are treated as the family creator's.
+export const tellerIsMine = (s, state) => (s?.createdBy ? s.createdBy === state.userId : (state.family?.role === 'owner' || !state.family));   // you + 1 family member on the free plan (server enforces it too, migration 011)
 
 const fresh = () => ({
   signedIn: false, email: '', verified: false, plan: 'free',
@@ -66,7 +70,9 @@ export function StoreProvider({ children }) {
   useEffect(() => { storeDraft(state.draft); }, [state.draft]);
   useEffect(() => { try { if (state.activeId) sessionStorage.setItem(ACTIVE, state.activeId); } catch {} }, [state.activeId]);
 
-  const profile = state.storytellers.find((s) => s.id === state.activeId) || null;
+  const found = state.storytellers.find((s) => s.id === state.activeId) || null;
+  // isSelf: "this storyteller is me" — true only for the person who recorded themselves, not for their relatives.
+  const profile = found ? { ...found, isSelf: found.mode === 'self' && tellerIsMine(found, state) } : null;
   const stories = state.stories.filter((s) => !profile || s.storytellerId === profile.id || !s.storytellerId);
 
   // Real mode: once we know who is signed in, pull their family and storytellers from the database.
@@ -131,7 +137,7 @@ export function StoreProvider({ children }) {
       if (!live) { setState((s) => { const id = p.id || 'st-' + Date.now(); return { ...s, storytellers: [...s.storytellers.filter((x) => x.id !== id), { ...p, id }], activeId: id }; }); return; }
       let family = state.family;
       if (!family) { family = await db.createFamily(familyNameFor(p)); }
-      const row = await db.addStoryteller(family.id, p);
+      const row = await db.addStoryteller(family.id, { ...p, createdBy: state.userId });
       setState((s) => ({ ...s, family, storytellers: [...s.storytellers.filter((x) => x.id !== row.id), row], activeId: row.id }));
     },
     updateStoryteller: async (id, patch) => {

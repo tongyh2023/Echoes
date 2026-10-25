@@ -35,7 +35,7 @@ export default function Family() {
         <div className="grid gap-8">
           {/* storytellers */}
           <section>
-            <div className="flex items-baseline justify-between border-b border-ink pb-2 mb-1"><h2 className="h2 m-0">{t('invite.storytellers')}</h2><button className="link-soft text-[13.5px]" onClick={() => (state.plan === 'free' && state.storytellers.length >= 1 ? nav('/upgrade?why=storyteller') : nav('/mode'))}>{t('invite.addStoryteller')}</button></div>
+            <div className="flex items-baseline justify-between border-b border-ink pb-2 mb-1"><h2 className="h2 m-0">{t('invite.storytellers')}</h2><button className="link-soft text-[13.5px]" onClick={() => (state.plan === 'free' && state.storytellers.length >= 1 ? nav('/upgrade?why=storyteller') : nav('/mode?add=1'))}>{t('invite.addStoryteller')}</button></div>
             <div className="divide-y divide-line border-b border-line">
               {state.storytellers.map((s0) => { const s = profileView(s0, lang); return (
                 <div key={s.id} className="py-4 flex items-center gap-4">
