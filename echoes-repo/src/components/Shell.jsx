@@ -96,8 +96,8 @@ export default function Shell({ children, nav = true }) {
           <div className="flex-1" />
           {show && <button className="btn btn-accent btn-sm !hidden md:!inline-flex" onClick={() => nav_('/pick')}>{t('nav.record')}</button>}
           {show && liveUser && <Bell />}
-          {/* Language: signed-in people change it in Settings; visitors and sign-up pages keep the switch here. */}
-          {!signedIn && <LangToggle />}
+          {/* Language: visitors, sign-up and onboarding (before a storyteller exists) keep the switch here; afterwards it lives in Settings. */}
+          {(!signedIn || !p) && <LangToggle />}
           {!p && !state.signedIn && <button className="link-soft text-[13.5px]" onClick={() => nav_('/login')}>{t('auth.login')}</button>}
           {p && <button onClick={() => nav_('/settings')} title={t('nav.settings')} className="cursor-pointer"><Avatar name={meName} src={state.meAvatar} size="w-9 h-9 text-[13px]" me={!state.meAvatar} /></button>}
         </div>

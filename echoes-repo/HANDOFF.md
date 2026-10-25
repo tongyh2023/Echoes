@@ -210,3 +210,4 @@ Invite   { name, sub, perms:['read'|'correct'|'add'] }
 - **`cleanup_before_launch.sql`**: preview → delete every family except the sample family, and CC's two test accounts. Helen's and her mother's accounts stay.
 - Community cards now show their photo on phones too.
 - **fix22 · ghost sessions**: after the pre-launch cleanup deleted CC's test accounts, a browser still holding one of their sign-in tokens could reach onboarding and failed with `families_created_by_fkey`. On load the app now checks the token with the server and drops it if the account no longer exists; sign-up clears any old session first; onboarding shows "please sign in again" instead of the raw database error.
+- **fix23 · language during onboarding**: the 中/EN switch now stays in the header until the first storyteller is saved (sign-up, log-in, verify, /mode, /profile), then moves to Settings. First visit still follows the browser language.

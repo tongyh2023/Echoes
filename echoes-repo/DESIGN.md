@@ -128,7 +128,7 @@ Use these classes; don't restyle them in place.
 - **Phone (< 768px)**: the top bar keeps logo, ♡ and avatar. Navigation moves to a **bottom tab bar**:
   Stories · Family · (Record — round navy button with gold ring) · Community · Settings.
   The tab bar is hidden in focused flows (record, processing, review/edit).
-- **Language**: signed-in people change it in **Settings → Language**. Visitors and sign-up pages keep the small 中 / EN switch in the header.
+- **Language**: the first visit follows the browser's language. Visitors, sign-up/log-in and onboarding pages (until the first storyteller is saved) show the small 中 / EN switch in the header; after that it lives in **Settings → Language**.
 - Every signed-in page has a footer: © · Privacy · Terms · hello@echoestory.com (required by the payment provider).
 
 ---
