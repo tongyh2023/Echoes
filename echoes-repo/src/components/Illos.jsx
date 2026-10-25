@@ -1,5 +1,5 @@
-import markPng from '../assets/mark.png';
-import markWhite from '../assets/mark-white.png';
+import markPng from '../assets/mark.webp';
+import markWhite from '../assets/mark-white.webp';
 // Hand-drawn-ish SVG illustrations in the product palette.
 // All are 320×220 viewBox, scale with width. Colors come from CSS variables so they follow the theme.
 

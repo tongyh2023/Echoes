@@ -20,6 +20,7 @@ import Person from './pages/Person';
 import Read from './pages/Read';
 import Notifications from './pages/Notifications';
 import Settings, { Upgrade } from './pages/Settings';
+import Book from './pages/Book';
 import { InviteLanding, SharedList, SharedStory } from './pages/Invitee';
 import { NotFound, Deleted } from './pages/Misc';
 
@@ -109,6 +110,7 @@ function App() {
       <Route path="/notifications" element={<Guard><Notifications /></Guard>} />
       <Route path="/settings" element={<Guard><Settings /></Guard>} />
       <Route path="/upgrade" element={<Guard><Upgrade /></Guard>} />
+      <Route path="/book" element={<Guard><Book /></Guard>} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

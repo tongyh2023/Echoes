@@ -4,6 +4,7 @@ import Shell, { Avatar, PageHeader, TwoCol } from '../components/Shell';
 import { useT, LANGUAGES } from '../lib/i18n';
 import { useStore } from '../lib/store';
 import { postView } from '../lib/loc';
+import { translateStory } from '../lib/db';
 
 // Community: other families' stories, read like a magazine — one featured piece, then a single column on hairlines.
 // Social is one gesture (like); the chrome gets out of the way. Audio never leaves the family.
@@ -19,11 +20,21 @@ export default function Community() {
   const featured = posts.find((p) => p.featured) || posts[0];
   const rest = posts.filter((p) => p !== featured);
   const me = state.email ? state.email.split('@')[0] : (zh ? '我' : 'Me');
+  // Inline translation on each card (Chinese ↔ English). Fetched on first tap, then toggled.
+  const [trs, setTrs] = useState({}); const [trOn, setTrOn] = useState({}); const [trBusy, setTrBusy] = useState(null);
+  const toOf = (po) => (/[\u3400-\u9fff]/.test((po.body || []).join('') + po.title) ? 'en' : 'zh');
+  const toggleTr = async (po) => {
+    if (trOn[po.id]) return setTrOn((m) => ({ ...m, [po.id]: false }));
+    if (!trs[po.id]) { setTrBusy(po.id); try { const d = await translateStory(po.storyId || po.id, toOf(po)); setTrs((m) => ({ ...m, [po.id]: d })); } catch { setTrBusy(null); return; } setTrBusy(null); }
+    setTrOn((m) => ({ ...m, [po.id]: true }));
+  };
+  const tv = (po) => { const d = trOn[po.id] && trs[po.id]; if (!d) return { title: po.title, excerpt: po.excerpt }; const t = d.paragraphs.join(' ').replace(/[\[\]]/g, ''); return { title: d.title, excerpt: t.slice(0, 120) + (t.length > 120 ? '…' : '') }; };
   const openPost = (po) => (po.storyId && allStories.some((s) => s.id === po.storyId) ? nav('/story/' + po.storyId) : nav('/read/' + po.id));
 
   const Actions = ({ po }) => (
     <div className="flex items-center gap-6 text-[13.5px] text-ink-2 mt-4">
       <button className={'cursor-pointer hover:text-ink ' + (po.liked ? 'text-rec' : '')} onClick={() => likePost(po.id, !po.liked).catch(() => nav('/login'))}>{po.liked ? '♥' : '♡'} {po.likes}</button>
+      {live && <button className="link-soft text-[12.5px]" disabled={trBusy === po.id} onClick={() => toggleTr(po)}>{trBusy === po.id ? '…' : trOn[po.id] ? (zh ? '原文' : 'Original') : toOf(po) === 'en' ? (zh ? '译成英文' : 'Translate') : (zh ? '译成中文' : 'Translate')}</button>}
       <span className="flex-1" />
       <button className="link text-[13px]" onClick={() => openPost(po)}>{po.storyId && allStories.some((s) => s.id === po.storyId) ? t('community.readListen') : t('community.read')} →</button>
     </div>
@@ -47,11 +58,11 @@ export default function Community() {
         <div>
           {featured && (
             <article className={'grid gap-10 items-start pb-12 mb-4 border-b border-ink ' + (featured.image ? 'md:grid-cols-[1fr_1.1fr]' : 'md:grid-cols-[0.6fr_1.1fr]')}>
-              <div className="relative">{featured.image ? <><img src={featured.image} alt="" className="block w-full aspect-[4/3] object-cover" />{featured.era && <span className="absolute left-3 top-3 ed-caps !text-paper bg-ink/70 px-2 py-1">{featured.era}</span>}</> : <div className="w-full aspect-[4/3] border border-line flex items-center justify-center"><span className="serif text-[120px] leading-none text-ink-3/40 select-none">{(featured.title || '·').slice(0, 1)}</span></div>}</div>
+              <div className="relative">{featured.image ? <><img src={featured.image} alt="" className="block w-full aspect-[4/3] object-cover rounded-[4px]" />{featured.era && <span className="absolute left-3 top-3 ed-caps !text-paper bg-ink/70 px-2 py-1">{featured.era}</span>}</> : <div className="w-full aspect-[4/3] wash rounded-[4px] flex items-center justify-center"><span className="serif text-[120px] leading-none text-primary/25 select-none">{(featured.title || '·').slice(0, 1)}</span></div>}</div>
               <div>
                 <div className="ed-caps !text-accent mb-4">{t('community.featured')}</div>
-                <h2 className="serif font-medium text-[36px] leading-[1.15] m-0 mb-4 cursor-pointer hover:underline underline-offset-4 decoration-1" onClick={() => openPost(featured)}>{featured.title}</h2>
-                <p className="story text-[16.5px] leading-[1.85] text-ink-2 m-0 mb-5" style={{ maxWidth: 'none' }}>{featured.excerpt}</p>
+                <h2 className="serif font-medium text-[36px] leading-[1.15] m-0 mb-4 cursor-pointer hover:underline underline-offset-4 decoration-1" onClick={() => openPost(featured)}>{tv(featured).title}</h2>
+                <p className="story text-[16.5px] leading-[1.85] text-ink-2 m-0 mb-5" style={{ maxWidth: 'none' }}>{tv(featured).excerpt}</p>
                 <Byline po={featured} /><Meta po={featured} />
                 <Actions po={featured} /><Comments po={featured} />
               </div>
@@ -63,11 +74,11 @@ export default function Community() {
               <article key={po.id} className={'py-8 grid gap-8 items-start ' + (po.image ? 'md:grid-cols-[1fr_150px]' : '')}>
                 <div className="min-w-0">
                   <Byline po={po} />
-                  <h3 className="serif font-medium text-[24px] leading-[1.3] mt-3 mb-2 cursor-pointer hover:underline underline-offset-4 decoration-1" onClick={() => openPost(po)}>{po.title}</h3>
-                  <p className="story text-[15.5px] leading-[1.8] text-ink-2 m-0 line-clamp-2" style={{ maxWidth: 'none' }}>{po.excerpt}</p>
+                  <h3 className="serif font-medium text-[24px] leading-[1.3] mt-3 mb-2 cursor-pointer hover:underline underline-offset-4 decoration-1" onClick={() => openPost(po)}>{tv(po).title}</h3>
+                  <p className="story text-[15.5px] leading-[1.8] text-ink-2 m-0 line-clamp-2" style={{ maxWidth: 'none' }}>{tv(po).excerpt}</p>
                   <Meta po={po} /><Actions po={po} /><Comments po={po} />
                 </div>
-                {po.image ? <img src={po.image} alt="" className="hidden md:block w-[150px] aspect-square object-cover cursor-pointer" onClick={() => openPost(po)} /> : null}
+                {po.image ? <img src={po.image} alt="" className="hidden md:block w-[150px] aspect-square object-cover cursor-pointer rounded-[4px]" onClick={() => openPost(po)} /> : null}
               </article>
             ))}
             {rest.length === 0 && !featured && <p className="text-ink-3 py-10 m-0">{t('community.noneFilter')}</p>}

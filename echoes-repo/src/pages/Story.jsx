@@ -6,6 +6,7 @@ import MediaPanel from '../components/MediaPanel';
 import { useT } from '../lib/i18n';
 import { useStore } from '../lib/store';
 import { storyView, profileView } from '../lib/loc';
+import { translateStory } from '../lib/db';
 
 const EMOJI = ['❤️', '😂', '😢', '👏'];
 
@@ -18,7 +19,19 @@ export default function Story() {
   const p = profileView(state.storytellers.find((x) => x.id === raw?.storytellerId) || state.profile || {}, lang);
   const [consent, setConsent] = useState(false); const [agree, setAgree] = useState(false); const [share, setShare] = useState(false); const [ask, setAsk] = useState('');
   const [toast, toastEl] = useToast();
+  const [tr, setTr] = useState(null); const [showTr, setShowTr] = useState(false); const [trBusy, setTrBusy] = useState(false);
   if (!story) { nav('/home'); return null; }
+  // Translation (Chinese ↔ English) — same service as the community, cached on the story.
+  const to = /[\u3400-\u9fff]/.test(story.text.first.join('') + story.title) ? 'en' : 'zh';
+  const toggleTr = async () => {
+    if (showTr) return setShowTr(false);
+    if (tr) return setShowTr(true);
+    setTrBusy(true);
+    try { setTr(await translateStory(story.id, to)); setShowTr(true); }
+    catch { toast(zh ? '暂时没能翻译，请稍后再试。' : 'Could not translate right now.'); }
+    finally { setTrBusy(false); }
+  };
+  const view = showTr && tr ? { title: tr.title, paras: tr.paragraphs, terms: tr.terms } : { title: story.title, paras: story.text.first, terms: story.terms };
   const pending = story.terms.filter((x) => x.status === 'pending').length;
   const me = state.userName || (state.email ? state.email.split('@')[0] : (zh ? '我' : 'Me'));
   const reactions = state.reactions?.[story.id] || [];
@@ -33,10 +46,11 @@ export default function Story() {
       <TwoCol asideWidth={300} main={(
         <article>
           <div className="ed-caps mb-3">{story.date} · {[story.era, story.place].filter(Boolean).join(' · ')}</div>
-          <h1 className="serif font-medium text-[38px] leading-[1.2] m-0 mb-2">{story.title}</h1>
+          <h1 className="serif font-medium text-[30px] md:text-[38px] leading-[1.2] m-0 mb-2">{view.title}</h1>
           <p className="text-[14.5px] text-ink-2 mb-7">{p.name}{story.people?.length ? ' · ' + story.people.join('、') : ''}{story.topics?.length ? ' · ' + story.topics.join('、') : ''}</p>
           <div className="mb-8"><Audio dur={story.duration} src={story.audioUrl} path={story.audioPath} /></div>
-          <StoryText paragraphs={story.text.first} terms={story.terms} mode="glossary" />
+          {live && <div className="flex flex-wrap items-center gap-4 text-[13.5px] mb-5"><button className="link" disabled={trBusy} onClick={toggleTr}>{trBusy ? (zh ? '翻译中…' : 'Translating…') : showTr ? (zh ? '看原文' : 'Show original') : to === 'en' ? (zh ? '翻译成英文' : 'Translate to English') : (zh ? '翻译成中文' : 'Translate to Chinese')}</button>{showTr && <span className="text-ink-3 text-[12.5px]">{zh ? 'AI 翻译，可能和原意有出入' : 'AI translation — may differ from the original'}</span>}</div>}
+          <StoryText paragraphs={view.paras} terms={view.terms} mode="glossary" />
           {story.terms.length > 0 && (
             <section className="mt-8 border-t border-line pt-4">
               <div className="ed-caps mb-3">{zh ? '注释' : 'Notes'}</div>
@@ -57,7 +71,7 @@ export default function Story() {
           <section className="mt-14 border-t border-ink pt-5">
             <div className="ed-caps mb-4">{zh ? '家里人' : 'Family'}</div>
             <div className="flex flex-wrap items-center gap-2 mb-6">
-              {EMOJI.map((e) => { const n = reactions.filter((r) => r.emoji === e).length; const mine = reactions.some((r) => r.emoji === e && isMine(r)); return <button key={e} className={'px-3 py-1.5 border text-[14px] cursor-pointer ' + (mine ? 'border-ink bg-ink text-paper' : 'border-line hover:border-ink')} onClick={() => react(story.id, me, e)}>{e}{n > 0 && <span className="ml-1.5 tabular-nums">{n}</span>}</button>; })}
+              {EMOJI.map((e) => { const n = reactions.filter((r) => r.emoji === e).length; const mine = reactions.some((r) => r.emoji === e && isMine(r)); return <button key={e} className={'px-3 py-1.5 border text-[14px] cursor-pointer ' + (mine ? 'border-primary bg-primary text-white' : 'border-line hover:border-ink')} onClick={() => react(story.id, me, e)}>{e}{n > 0 && <span className="ml-1.5 tabular-nums">{n}</span>}</button>; })}
               {reactions.length > 0 && <span className="text-[13px] text-ink-3 ml-2">{[...new Set(reactions.map((r) => r.who))].join('、')}</span>}
             </div>
             <div className="ed-caps mb-2">{zh ? '读完想接着问' : 'Ask a follow-up'}</div>
@@ -81,11 +95,11 @@ export default function Story() {
       )} />
       {consent && (
         <div className="fixed inset-0 z-30 bg-ink/40 flex items-center justify-center p-5" onClick={() => setConsent(false)}>
-          <div className="bg-paper border border-ink p-8 max-w-[480px] w-full" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-card border border-line rounded-[4px] shadow-[var(--shadow-card)] p-8 max-w-[480px] w-full" onClick={(e) => e.stopPropagation()}>
             <div className="ed-caps mb-3">{zh ? '发布前' : 'Before publishing'}</div>
             <h2 className="h2 mb-3">{p.mode === 'self' ? (zh ? '确定公开这个故事吗？' : 'Make this story public?') : (zh ? `${p.name}知道并同意公开这个故事吗？` : `Does ${p.name} know and agree to publish this?`)}</h2>
             <p className="text-ink-2 text-[14.5px] mb-5">{zh ? '发布后其他家庭能看到文字、照片和已确认的注释，可以点赞；原声只对家人开放。随时可以取消发布。' : 'Other families will see the text, photos and confirmed notes and can like it; audio stays family-only. You can unpublish any time.'}{p.mode !== 'self' && (zh ? ' 这是他的故事和声音——请先问过他。' : ' It is their story — ask first.')}</p>
-            <label className="flex items-start gap-3 text-[14.5px] mb-6 cursor-pointer"><input type="checkbox" className="mt-1.5 accent-ink" checked={agree} onChange={(e) => setAgree(e.target.checked)} />{p.mode === 'self' ? (zh ? '我确认公开这个故事。' : 'I confirm I want this story public.') : (zh ? `我已经问过${p.name}，他同意公开这个故事。` : `I asked ${p.name} and they agree.`)}</label>
+            <label className="flex items-start gap-3 text-[14.5px] mb-6 cursor-pointer"><input type="checkbox" className="mt-1.5 accent-primary" checked={agree} onChange={(e) => setAgree(e.target.checked)} />{p.mode === 'self' ? (zh ? '我确认公开这个故事。' : 'I confirm I want this story public.') : (zh ? `我已经问过${p.name}，他同意公开这个故事。` : `I asked ${p.name} and they agree.`)}</label>
             <div className="flex items-center gap-6 justify-end"><button className="link-soft text-[14px]" onClick={() => setConsent(false)}>{t('common.cancel')}</button><button className="btn btn-primary" disabled={!agree} onClick={async () => { setConsent(false); setAgree(false); await publish(raw, true); nav('/read/' + (live ? story.id : 'c-' + story.id), { state: { published: true } }); }}>{t('story.publish')}</button></div>
           </div>
         </div>

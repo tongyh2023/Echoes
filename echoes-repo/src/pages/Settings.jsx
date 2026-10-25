@@ -8,7 +8,7 @@ import { profileView } from '../lib/loc';
 import { billingInfo, startCheckout, openPortal, joinWaitlist } from '../lib/db';
 
 export default function Settings() {
-  const { lang } = useT(); const zh = lang === 'zh'; const nav = useNavigate();
+  const { lang, setLang } = useT(); const zh = lang === 'zh'; const nav = useNavigate();
   const { state, allStories, setActive, setPlan, deleteAccount, updateStoryteller, reset, seedDemo, setMeAvatar, setMyName, live } = useStore(); const auth = useAuth(); const [demoBusy, setDemoBusy] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false); const [myName, setMyNameDraft] = useState(null); const [nameSaved, setNameSaved] = useState(false);
   const { refreshBilling } = useStore(); const loc = useLocation(); const [justPaid, setJustPaid] = useState(false);
@@ -30,7 +30,7 @@ export default function Settings() {
         <Section title={zh ? '讲述者' : 'Storytellers'}>
           <div className="grid gap-2 mb-3">
             {state.storytellers.map((s0) => { const s = profileView(s0, lang); return (
-              <div key={s.id} className="flex items-center gap-4 border-b border-line py-4">
+              <div key={s.id} className="flex items-center gap-3 sm:gap-4 border-b border-line py-4">
                 <Avatar name={s.name} src={s.avatar} size="w-11 h-11 text-[15px]" me={s.id === state.activeId && !s.avatar} onPick={(url) => updateStoryteller(s.id, { avatar: url })} />
                 <span className="flex-1 min-w-0"><span className="block font-medium">{s.name} <span className="text-[12px] text-ink-3 font-normal">{s.mode === 'self' ? (zh ? '· 我自己' : '· myself') : s.relation ? `· ${zh ? '我的' : 'my '}${s.relation}` : ''}</span></span><span className="block text-[12.5px] text-ink-2 truncate">{s.hometown} · {LANGUAGES.find((l) => l.code === s.lang)?.label}{s.dialects?.length ? ' · ' + s.dialects.join('、') : ''} · {allStories.filter((x) => x.storytellerId === s.id).length} {zh ? '个故事' : 'stories'}</span></span>
                 {s.id === state.activeId ? <span className="ed-caps">{zh ? '当前' : 'Active'}</span> : <button className="link-soft text-[13.5px]" onClick={() => setActive(s.id)}>{zh ? '切换' : 'Switch'}</button>}
@@ -40,6 +40,14 @@ export default function Settings() {
           </div>
           <button className="link-soft text-[14px]" onClick={() => { if (state.plan === 'free' && state.storytellers.length >= 1) nav('/upgrade?why=storyteller'); else nav('/mode?add=1'); }}>+ {zh ? '再加一位讲述者' : 'Add a storyteller'}</button>
           {state.plan === 'free' && <p className="text-[12.5px] text-ink-3 mt-2">{zh ? '免费版：1 位讲述者、1 位家人；家庭版不限。' : 'Free: 1 storyteller and 1 family member. Family plan: unlimited.'}</p>}
+        </Section>
+
+        <Section title={zh ? '语言' : 'Language'}>
+          <p className="text-[13.5px] text-ink-2 mt-0 mb-4">{zh ? '网站界面的语言。故事本身保持讲述者的语言，社区里可以翻译。' : 'The language of the interface. Stories stay in the storyteller’s language; community stories can be translated.'}</p>
+          <div className="seg" role="radiogroup" aria-label={zh ? '界面语言' : 'Interface language'}>
+            <button role="radio" aria-checked={zh} className={zh ? 'on' : ''} onClick={() => setLang('zh')}>中文</button>
+            <button role="radio" aria-checked={!zh} className={!zh ? 'on' : ''} onClick={() => setLang('en')}>English</button>
+          </div>
         </Section>
 
         <Section title={zh ? '方案' : 'Plan'}>
@@ -60,6 +68,7 @@ export default function Settings() {
           <div className="flex gap-3 mb-5 max-w-[420px]"><input className="input flex-1" value={myName ?? state.userName ?? ''} onChange={(e) => { setMyNameDraft(e.target.value); setNameSaved(false); }} placeholder={zh ? '例如：小童' : 'e.g. Helen'} /><button className="btn" disabled={!String(myName ?? '').trim() || myName === state.userName} onClick={async () => { try { await setMyName(myName); setNameSaved(true); setMyNameDraft(null); } catch { alert(zh ? '没保存上，请再试一次。' : 'Could not save. Please try again.'); } }}>{nameSaved ? '✓' : (zh ? '保存' : 'Save')}</button></div>
           <div className="text-[14px] mb-4"><span className="text-ink-2">{zh ? '邮箱' : 'Email'}</span> · {state.email || '—'} {state.verified ? <span className="ed-caps !text-accent ml-2">{zh ? '已验证' : 'Verified'}</span> : <span className="ed-caps ml-2">{zh ? '未验证' : 'Unverified'}</span>}</div>
           <div className="flex flex-wrap items-center gap-6">
+            <button className="btn" disabled={!allStories.length} onClick={() => nav('/book')}>{zh ? '导出 PDF 故事书' : 'Export as a PDF book'}</button><span className="text-[12.5px] text-ink-3">{zh ? '免费 · 所有故事的文字、注释和照片' : 'Free · every story’s text, notes and photos'}</span>
             <button className="link-soft text-[14px]" onClick={async () => { await auth.signOut(); nav('/'); }}>{zh ? '退出登录' : 'Log out'}</button>
           </div>
         </Section>
@@ -111,7 +120,7 @@ export function Upgrade() {
                 {[['monthly', info.prices?.monthly || info.price, zh ? '月付' : 'Monthly', zh ? '/ 月' : '/ month', zh ? '每月自动续费，随时可以取消' : 'Renews every month · cancel any time'],
                   ['lifetime', info.prices?.lifetime, zh ? '终身' : 'Lifetime', zh ? '一次付清' : 'once', zh ? '一次付清，不再扣费' : 'Pay once, never charged again']]
                   .filter(([, p]) => p).map(([k, p, name, per, note]) => (
-                  <button key={k} onClick={() => setChoice(k)} className={'text-left border p-4 cursor-pointer ' + (choice === k ? 'border-ink bg-line-2/40' : 'border-line hover:border-ink-3')} aria-pressed={choice === k}>
+                  <button key={k} onClick={() => setChoice(k)} className={'text-left border p-4 cursor-pointer ' + (choice === k ? 'border-primary bg-primary-soft' : 'border-line hover:border-ink-3') + ' rounded-[4px]'} aria-pressed={choice === k}>
                     <span className="ed-caps block mb-2">{name}</span>
                     <span className="serif text-[28px] leading-none">{usd(p)}</span><span className="text-[13px] text-ink-2 ml-1.5">USD {per}</span>
                     <span className="block text-[12.5px] text-ink-2 mt-2">{note}</span>

@@ -382,7 +382,7 @@ export async function polishText(paragraphs, lang) {
 }
 // Community translation (Chinese ↔ English). Cached on the story after the first request.
 export async function translateStory(storyId, to) {
-  const r = await fetch('/api/translate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ storyId, to }) });
+  const r = await fetch('/api/translate', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeader()) }, body: JSON.stringify({ storyId, to }) });
   const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.error || 'HTTP ' + r.status);
   return d;   // { title, paragraphs, terms }
 }

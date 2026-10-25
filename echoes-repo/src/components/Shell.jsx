@@ -6,6 +6,15 @@ import { getAudioUrl, loadNotifications } from '../lib/db';
 import { hasSupabase } from '../lib/supabase';
 import { Mark } from './Illos';
 
+// Line icons for the phone tab bar (1.6px stroke, currentColor — DESIGN.md → Icons).
+const ICON = {
+  book: <path d="M4 5.5C4 4.7 4.7 4 5.5 4H11v15H5.5c-.8 0-1.5-.7-1.5-1.5v-12ZM20 5.5c0-.8-.7-1.5-1.5-1.5H13v15h5.5c.8 0 1.5-.7 1.5-1.5v-12Z" />,
+  home: <path d="M4 10.5 12 4l8 6.5V19a1 1 0 0 1-1 1h-4.5v-5.5h-5V20H5a1 1 0 0 1-1-1v-8.5Z" />,
+  globe: <><circle cx="12" cy="12" r="8" /><path d="M4 12h16M12 4c2.4 2.3 3.5 5 3.5 8s-1.1 5.7-3.5 8c-2.4-2.3-3.5-5-3.5-8S9.6 6.3 12 4Z" /></>,
+  me: <><circle cx="12" cy="9" r="3.6" /><path d="M5 20c.9-3.6 3.6-5.5 7-5.5s6.1 1.9 7 5.5" /></>,
+};
+const Icon = ({ name }) => <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round" aria-hidden="true">{ICON[name]}</svg>;
+
 export function LangToggle() {
   const { lang, setLang } = useT();
   return (
@@ -61,39 +70,41 @@ export default function Shell({ children, nav = true }) {
       {unread > 0 && <span className="absolute -top-2 -right-3 min-w-[18px] h-[18px] px-1 rounded-full bg-rec text-white text-[10.5px] leading-[18px] text-center tracking-normal">{unread > 9 ? '9+' : unread}</span>}
     </button>
   );
-  const cls = ({ isActive }) => 'ed-caps py-1 transition-colors ' + (isActive ? '!text-ink' : 'hover:!text-ink');
-  const sty = ({ isActive }) => ({ borderBottom: '1px solid ' + (isActive ? 'var(--color-ink)' : 'transparent') });
+  // Selected item: a short gold brush stroke under the label (DESIGN.md → Navigation).
+  const cls = ({ isActive }) => 'ed-caps pt-1 pb-[7px] transition-colors ' + (isActive ? 'nav-on' : 'hover:!text-ink');
+  const signedIn = Boolean(state.userId || state.signedIn);
+  // Focused flows (recording, tidying, reviewing) keep the screen to themselves — no bottom bar on phones.
+  const focused = /^\/(record|processing|review)|\/edit$/.test(loc.pathname);
+  const tab = (to, label, icon) => (
+    <NavLink to={to} className={({ isActive }) => 'flex-1 flex flex-col items-center justify-center gap-0.5 h-full text-[11px] tracking-[.06em] ' + (isActive ? 'text-primary font-medium' : 'text-ink-3')}>
+      {({ isActive }) => (<><Icon name={icon} /><span className={isActive ? 'nav-on !pb-[3px] !bg-[length:100%_4px]' : 'pb-[3px]'}>{label}</span></>)}
+    </NavLink>
+  );
+  const meName = state.userName || (state.email ? state.email.split('@')[0] : '我');
   return (
     <div className="min-h-screen flex flex-col ed">
       <header className="border-b border-line bg-paper/92 backdrop-blur sticky top-0 z-10">
-        <div className="ed-wrap h-[68px] flex items-center gap-8">
+        <div className="ed-wrap h-[64px] md:h-[68px] flex items-center gap-5 md:gap-8">
           <button onClick={() => nav_(p ? '/home' : '/')} className="cursor-pointer shrink-0"><Brand /></button>
           {show && (
             <nav className="hidden md:flex gap-7 ml-4">
-              <NavLink to="/home" className={cls} style={sty}>{t('nav.stories')}</NavLink>
-              <NavLink to="/family" className={cls} style={sty}>{fam}</NavLink>
-              <NavLink to="/community" className={cls} style={sty}>{t('nav.community')}</NavLink>
+              <NavLink to="/home" className={cls}>{t('nav.stories')}</NavLink>
+              <NavLink to="/family" className={cls}>{fam}</NavLink>
+              <NavLink to="/community" className={cls}>{t('nav.community')}</NavLink>
             </nav>
           )}
           <div className="flex-1" />
-          {show && <button className="btn btn-accent btn-sm hidden sm:inline-flex" onClick={() => nav_('/pick')}>{t('nav.record')}</button>}
+          {show && <button className="btn btn-accent btn-sm !hidden md:!inline-flex" onClick={() => nav_('/pick')}>{t('nav.record')}</button>}
           {show && liveUser && <Bell />}
-          <LangToggle />
+          {/* Language: signed-in people change it in Settings; visitors and sign-up pages keep the switch here. */}
+          {!signedIn && <LangToggle />}
           {!p && !state.signedIn && <button className="link-soft text-[13.5px]" onClick={() => nav_('/login')}>{t('auth.login')}</button>}
-          {p && <button onClick={() => nav_('/settings')} title={t('nav.settings')} className="cursor-pointer"><Avatar name={state.email ? state.email.split('@')[0] : '我'} src={state.meAvatar} size="w-8 h-8 text-[13px]" /></button>}
+          {p && <button onClick={() => nav_('/settings')} title={t('nav.settings')} className="cursor-pointer"><Avatar name={meName} src={state.meAvatar} size="w-9 h-9 text-[13px]" me={!state.meAvatar} /></button>}
         </div>
-        {show && (
-          <nav className="md:hidden flex gap-5 px-7 pb-3 overflow-x-auto items-center">
-            <NavLink to="/home" className={cls} style={sty}>{t('nav.stories')}</NavLink>
-            <NavLink to="/family" className={cls} style={sty}>{fam}</NavLink>
-            <NavLink to="/community" className={cls} style={sty}>{t('nav.community')}</NavLink>
-            <button className="btn btn-accent btn-sm ml-auto" onClick={() => nav_('/pick')}>{t('nav.record')}</button>
-          </nav>
-        )}
       </header>
-      <main className="ed-wrap w-full py-10 flex-1">{children}</main>
+      <main className={'ed-wrap w-full py-8 md:py-10 flex-1 ' + (show && !focused ? 'pb-24 md:pb-10' : '')}>{children}</main>
       {/* Privacy, terms and a contact on every signed-in page (payment providers require them to be reachable) */}
-      <footer className="border-t border-line">
+      <footer className={'border-t border-line ' + (show && !focused ? 'mb-[64px] md:mb-0' : '')}>
         <div className="ed-wrap py-5 flex flex-wrap items-center gap-x-6 gap-y-2 text-[12.5px] text-ink-3">
           <span>© {new Date().getFullYear()} Echoes</span>
           <a className="hover:text-ink" href="/privacy">{t('nav.privacy')}</a>
@@ -101,6 +112,19 @@ export default function Shell({ children, nav = true }) {
           <a className="hover:text-ink" href="mailto:hello@echoestory.com">hello@echoestory.com</a>
         </div>
       </footer>
+      {/* Phones: one bottom bar instead of the top menu (DESIGN.md → Navigation). */}
+      {show && !focused && (
+        <nav className="md:hidden fixed bottom-0 inset-x-0 z-20 h-[64px] bg-paper/95 backdrop-blur border-t border-line flex items-stretch px-1" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }} aria-label="main">
+          {tab('/home', t('nav.stories'), 'book')}
+          {tab('/family', t('nav.family'), 'home')}
+          <button onClick={() => nav_('/pick')} className="flex-1 flex flex-col items-center justify-center" aria-label={t('nav.record')}>
+            <span className="w-11 h-11 -mt-5 rounded-full bg-primary text-white flex items-center justify-center" style={{ boxShadow: '0 0 0 3px var(--color-paper), 0 0 0 4.5px var(--color-gold)' }}><span className="w-3.5 h-3.5 rounded-full bg-white" /></span>
+            <span className="text-[11px] tracking-[.06em] text-ink-2 mt-0.5">{t('nav.recordShort')}</span>
+          </button>
+          {tab('/community', t('nav.community'), 'globe')}
+          {tab('/settings', t('nav.settings'), 'me')}
+        </nav>
+      )}
     </div>
   );
 }
@@ -150,9 +174,9 @@ export function Audio({ label, dur = '0:00', src: srcProp, path }) {
   return (
     <div className="flex items-center gap-3 card px-4 py-2.5">
       {src && <audio ref={ref} src={src} preload="metadata" />}
-      <button className={'w-9 h-9 text-paper text-[11px] flex items-center justify-center cursor-pointer flex-none ' + (canPlay && !failed ? 'bg-ink' : 'bg-ink-3')} onClick={toggle} aria-label={playing ? 'pause' : 'play'} title={failed ? (lang === 'zh' ? '原声仅对家人开放' : 'Audio is family-only') : ''}>{loading ? '…' : playing ? '❚❚' : '▶'}</button>
+      <button className={'w-9 h-9 text-paper text-[11px] flex items-center justify-center cursor-pointer flex-none ' + (canPlay && !failed ? 'bg-primary' : 'bg-ink-3') + ' rounded-full'} onClick={toggle} aria-label={playing ? 'pause' : 'play'} title={failed ? (lang === 'zh' ? '原声仅对家人开放' : 'Audio is family-only') : ''}>{loading ? '…' : playing ? '❚❚' : '▶'}</button>
       <div className="flex-1 flex items-center gap-[3px] h-7 overflow-hidden cursor-pointer" aria-hidden="true" onClick={(e) => { const a = ref.current; if (!a || !a.duration) return; const r = e.currentTarget.getBoundingClientRect(); a.currentTime = ((e.clientX - r.left) / r.width) * a.duration; }}>
-        {Array.from({ length: bars }).map((_, i) => <span key={i} className="flex-1 bg-ink" style={{ height: `${20 + Math.abs(Math.sin(i * 0.7) * 70)}%`, opacity: i / bars <= prog ? 1 : 0.3 }} />)}
+        {Array.from({ length: bars }).map((_, i) => <span key={i} className="flex-1 bg-primary rounded-full" style={{ height: `${20 + Math.abs(Math.sin(i * 0.7) * 70)}%`, opacity: i / bars <= prog ? 1 : 0.3 }} />)}
       </div>
       <span className="text-[13px] text-ink-2 tabular-nums whitespace-nowrap">{label || t('review.original')} · {playing || cur > 0 ? fmt(cur) : dur}</span>
     </div>
@@ -163,7 +187,7 @@ export function Avatar({ name = '', src, size = 'w-9 h-9 text-[13px]', me = fals
   const ref = useRef(null);
   const el = <span className={'avatar overflow-hidden ' + (me ? 'me ' : '') + size + ' ' + className + (onPick ? ' cursor-pointer relative group' : '')} onClick={onPick ? () => ref.current.click() : undefined} title={onPick ? '更换头像' : undefined}>
     {src ? <img src={src} alt="" className="w-full h-full object-cover" /> : <span>{(name || '?').slice(0, 1).toUpperCase()}</span>}
-    {onPick && <span className="absolute inset-0 hidden group-hover:flex items-center justify-center bg-ink/60 text-paper text-[10px] tracking-wider">{src ? '换' : '+'}</span>}
+    {onPick && <span className="absolute inset-0 hidden group-hover:flex items-center justify-center bg-primary/70 text-white text-[10px] tracking-wider rounded-full">{src ? '换' : '+'}</span>}
   </span>;
   if (!onPick) return el;
   return <>{el}<input ref={ref} type="file" accept="image/*" className="hidden" onChange={async (e) => { const f = e.target.files?.[0]; if (f) onPick(await shrinkImage(f)); e.target.value = ''; }} /></>;
@@ -177,7 +201,7 @@ export function Note({ children }) { return <div className="inline-block px-3 py
 export function useToast() {
   const [msg, setMsg] = useState(null);
   const show = (m, ms = 2200) => { setMsg(m); setTimeout(() => setMsg(null), ms); };
-  const el = msg ? <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-ink text-paper text-[14px] px-5 py-2.5">{msg}</div> : null;
+  const el = msg ? <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-primary text-white text-[14px] px-5 py-2.5 rounded-[4px] shadow-[var(--shadow-soft)]">{msg}</div> : null;
   return [show, el];
 }
 

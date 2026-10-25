@@ -6,6 +6,7 @@ import { useT } from '../lib/i18n';
 import { SAMPLE_STORIES } from '../mock/data';
 import { C, DIALECTS } from './landingCopy';
 import coverC4 from '../assets/cover_c4.jpg';
+import markPng from '../assets/mark.webp';
 import stepA from '../assets/cover_c2.jpg';
 import stepB from '../assets/photo_es.jpg';
 import stepC from '../assets/cover_c6.jpg';
@@ -38,6 +39,7 @@ export default function Landing() {
     <Public>
       {/* ---------- hero ---------- */}
       <section className="relative overflow-hidden min-h-[560px]">
+        <img src={markPng} alt="" aria-hidden="true" className="ed-logo-wm" />
         <div className="ed-wrap relative pt-14 md:pt-20 pb-16 grid md:grid-cols-[1.05fr_0.95fr] gap-14 md:gap-20 items-center">
           <div className="relative">
             <div className="flex items-center gap-4 mb-7"><i className="ed-dash" /><span className="ed-caps">{c.eyebrow}</span></div>
@@ -81,8 +83,8 @@ export default function Landing() {
       {/* ---------- photo band ---------- */}
       <div className="relative h-[46vh] min-h-[320px] overflow-hidden">
         <img src={coverC4} alt="" className="absolute inset-0 w-full h-full object-cover ed-wash" />
-        <div className="absolute inset-0 bg-ink/35" />
-        <div className="absolute inset-x-0 bottom-0 ed-wrap pb-8 text-[#F3EFE8]"><p className="serif text-[22px] md:text-[28px] italic m-0 max-w-[36ch] leading-snug">{zh ? '"食未"不是问你吃没吃，是说我看见你了，你回来了。' : '“Have you eaten?” isn’t about food. It means: I see you — you’re home.'}</p><p className="ed-caps !text-[#D8D2C9] mt-3">{zh ? '阿嬷 · 潮州 · 1941' : 'Ah Ma · Chaozhou · 1941'}</p></div>
+        <div className="absolute inset-0 bg-primary-2/45" />
+        <div className="absolute inset-x-0 bottom-0 ed-wrap pb-8 text-white/90"><p className="serif text-[22px] md:text-[28px] italic m-0 max-w-[36ch] leading-snug">{zh ? '"食未"不是问你吃没吃，是说我看见你了，你回来了。' : '“Have you eaten?” isn’t about food. It means: I see you — you’re home.'}</p><p className="ed-caps !text-[#D8D2C9] mt-3">{zh ? '阿嬷 · 潮州 · 1941' : 'Ah Ma · Chaozhou · 1941'}</p></div>
       </div>
 
       {/* ---------- 02 why ---------- */}

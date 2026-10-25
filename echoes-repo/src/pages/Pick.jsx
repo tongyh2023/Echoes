@@ -4,7 +4,7 @@ import Shell, { PageHeader } from '../components/Shell';
 import { useT } from '../lib/i18n';
 import { useStore } from '../lib/store';
 import { QUESTIONS, CHAPTERS } from '../mock/data';
-import { fillQ } from './Home';
+import { fillQ, isFullQuestion } from './Home';
 import { profileView } from '../lib/loc';
 
 // The question bank as a table of contents. One chapter open at a time; a question row is just the question —
@@ -63,6 +63,7 @@ export default function Pick() {
                         {mine.map((q) => <Row key={q.id} q={q} text={q.text} meta={srcLabel(q)} />)}
                         <div className="py-5">
                           <textarea className="input q-text min-h-[88px]" value={own} onChange={(e) => setOwn(e.target.value)} placeholder={t('pick.ownPh')} />
+                          {own.trim() && !isFullQuestion(own) && <p className="text-[13px] text-ink-2 mt-2 mb-0 border-l-2 border-gold pl-3">{zh ? '试着写成一个完整的问题，长辈会更好回答。比如不写「南昌话」，写「有哪些南昌话，现在的年轻人已经不说了？」' : 'Try a full question — it’s easier to answer. Instead of “Nanchang words”, try “Which Nanchang words do young people no longer use?”'}</p>}
                           <div className="flex items-center gap-6 mt-3"><button className="btn btn-primary btn-sm" disabled={!own.trim()} onClick={async () => { const id = await addQuestion({ text: own.trim() }); setOwn(''); nav('/record/own?text=' + encodeURIComponent(own.trim()) + '&cq=' + id); }}>{zh ? '就问这个，去录' : 'Record this'} →</button><button className="link-soft text-[13.5px]" disabled={!own.trim()} onClick={() => { addQuestion({ text: own.trim() }); setOwn(''); }}>{zh ? '先存着' : 'Save for later'}</button></div>
                         </div>
                       </>
@@ -77,7 +78,7 @@ export default function Pick() {
 
       {sel && (
         <div className="fixed inset-0 z-30 bg-ink/40 flex items-center justify-center p-5" onClick={() => setSel(null)}>
-          <div className="bg-paper border border-ink p-8 max-w-[560px] w-full" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-card border border-line rounded-[4px] shadow-[var(--shadow-card)] p-8 max-w-[560px] w-full" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-baseline justify-between mb-4"><span className="ed-caps">{t('rec.eyebrow', { name: p.mode === 'self' ? (zh ? '你' : 'yourself') : p.name })}</span><button className="ed-caps hover:!text-ink cursor-pointer" onClick={() => setSel(null)}>{zh ? '关闭' : 'Close'} ✕</button></div>
             {editing ? (
               <>

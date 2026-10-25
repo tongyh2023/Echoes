@@ -1,9 +1,11 @@
 // POST /api/translate { storyId, to: 'en' | 'zh' }  → { title, paragraphs, terms, cached }
+// Published stories: anyone. Unpublished: only members of that family (Authorization: Bearer <supabase token>).
 // Translates a story that is PUBLISHED to the community, Chinese ↔ English. Anyone may ask (visitors read the
 // community too), but only published stories are translated, and each translation is saved on the story
 // (stories.translations, migration 010), so a story costs one AI call per language — later readers get the copy.
 // If the family edits the story afterwards, the fingerprint changes and the next reader gets a fresh translation.
 import { chatJson, sb } from './_ai.js';
+import { caller } from './_billing.js';
 
 const SYSTEM = {
   en: `You translate a family oral-history story from Chinese into natural English.
@@ -28,11 +30,14 @@ export default async function handler(req, res) {
     if (!/^[0-9a-f-]{36}$/i.test(String(storyId || '')) || !['en', 'zh'].includes(to)) return res.status(400).json({ error: 'storyId and to (en|zh) required' });
     const { url, secret, headers } = sb();
     if (!url || !secret) return res.status(500).json({ error: 'SUPABASE_SECRET_KEY is not set in Vercel' });
-    const r = await fetch(`${url}/rest/v1/stories?select=id,title,text,terms,published,translations&id=eq.${storyId}`, { headers });
+    const r = await fetch(`${url}/rest/v1/stories?select=id,family_id,title,text,terms,published,translations&id=eq.${storyId}`, { headers });
     const story = r.ok ? (await r.json())[0] : null;
-    if (!story || !story.published) return res.status(404).json({ error: 'not a published story' });
+    if (!story) return res.status(404).json({ error: 'no such story' });
+    const family = !story.published && (await caller(req, story.family_id));
+    if (!story.published && !family) return res.status(404).json({ error: 'not a published story' });
 
-    const terms = (story.terms || []).filter((t) => t && t.status === 'ok');   // readers only ever see confirmed notes
+    // Readers outside the family only ever see confirmed notes; the family's own copy includes all of them.
+    const terms = (story.terms || []).filter((t) => t && (story.published ? t.status === 'ok' : true));
     const src = fingerprint({ ...story, terms });
     const cached = story.translations?.[to];
     if (cached && cached.src === src) return res.status(200).json({ ...cached, cached: true });
