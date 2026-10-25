@@ -2,13 +2,14 @@
 // Environment variables (Vercel → Settings → Environment Variables):
 //   BILLING_MODE            'stripe' to take payments, anything else (or unset) = waitlist
 //   STRIPE_SECRET_KEY       sk_test_… / sk_live_…      (secret)
-//   STRIPE_PRICE_ID         price_…                     (the Family plan price)
+//   STRIPE_PRICE_ID         price_…                     (Family plan, monthly — recurring US$4.99/month)
+//   STRIPE_PRICE_ID_LIFETIME price_…                    (Family plan, lifetime — one-time US$19.99; optional)
 //   STRIPE_WEBHOOK_SECRET   whsec_…                     (secret)
 //   SUPABASE_SECRET_KEY     sb_secret_… (or the legacy service_role key) — only the webhook uses it (secret)
 //   VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY          already set for the site
 export const env = () => ({
   mode: process.env.BILLING_MODE === 'stripe' && process.env.STRIPE_SECRET_KEY && process.env.STRIPE_PRICE_ID ? 'stripe' : 'waitlist',
-  stripeKey: process.env.STRIPE_SECRET_KEY, priceId: process.env.STRIPE_PRICE_ID, webhookSecret: process.env.STRIPE_WEBHOOK_SECRET,
+  stripeKey: process.env.STRIPE_SECRET_KEY, priceId: process.env.STRIPE_PRICE_ID, lifetimePriceId: process.env.STRIPE_PRICE_ID_LIFETIME || null, webhookSecret: process.env.STRIPE_WEBHOOK_SECRET,
   sbUrl: (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').replace(/\/$/, ''),
   sbAnon: process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY,
   sbSecret: process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY,

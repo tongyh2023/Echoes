@@ -21,6 +21,7 @@ export function friendlyError(err, zh) {
   if (m.includes('password should be at least')) return zh ? '密码至少 8 位。' : 'Password needs at least 8 characters.';
   if (m.includes('email not confirmed')) return zh ? '邮箱还没验证，先去邮箱点一下链接。' : 'Email not confirmed yet — check your inbox.';
   if (m.includes('rate limit') || m.includes('too many')) return zh ? '试得太频繁了，等一分钟再来。' : 'Too many attempts — wait a minute and try again.';
+  if (m.includes('family is full')) return zh ? '这个家用的是免费版，只能邀请 1 位家人，现在已经满了。请让邀请你的人升级家庭版。' : 'This family is on the free plan, which allows 1 invited family member, and it’s full. Ask the person who invited you to upgrade.';
   if (m.includes('network') || m.includes('fetch')) return zh ? '网络不通，检查一下连接。' : 'Network problem — check your connection.';
   return err?.message || (zh ? '出了点问题，再试一次。' : 'Something went wrong. Please try again.');
 }

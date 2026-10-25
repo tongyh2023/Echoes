@@ -30,7 +30,7 @@ function SectionHead({ n, eyebrow, title, lang, wide = false }) {
 export default function Landing() {
   const { lang } = useT(); const c = C[lang]; const nav = useNavigate(); const scrollTo = useScrollTo(); useScrollOnArrive();
   const zh = lang === 'zh';
-  const [open, setOpen] = useState(0); const [yearly, setYearly] = useState(true); const [pickId, setPickId] = useState(null);
+  const [open, setOpen] = useState(0); const [yearly, setYearly] = useState(false); const [pickId, setPickId] = useState(null);
   const story = SAMPLE_STORIES.find((x) => x.id === pickId) || SAMPLE_STORIES.find((x) => x.lang === lang) || SAMPLE_STORIES[0];
   const sName = zh ? story.name : story.nameEn;
 
@@ -137,10 +137,10 @@ export default function Landing() {
         <div className="ed-wrap">
           <div className="flex flex-wrap items-end justify-between gap-6 mb-12">
             <SectionHead n={3} eyebrow={c.priceEyebrow} title={c.priceT} lang={lang} />
-            <div className="ed-caps flex items-center gap-3 pb-3"><button className={(!yearly ? 'text-ink' : 'text-ink-3') + ' cursor-pointer'} onClick={() => setYearly(false)}>{c.month}</button><span className="text-ink-3">/</span><button className={(yearly ? 'text-ink' : 'text-ink-3') + ' cursor-pointer'} onClick={() => setYearly(true)}>{c.year}</button><span className="text-ochre-2">· {c.save}</span></div>
+            <div className="ed-caps flex items-center gap-3 pb-3"><button className={(!yearly ? 'text-ink' : 'text-ink-3') + ' cursor-pointer'} onClick={() => setYearly(false)}>{c.month}</button><span className="text-ink-3">/</span><button className={(yearly ? 'text-ink' : 'text-ink-3') + ' cursor-pointer'} onClick={() => setYearly(true)}>{c.year}</button></div>
           </div>
           <div className="grid md:grid-cols-2 gap-x-16 gap-y-12">
-            {[{ name: c.free, price: zh ? '¥0' : '$0', per: '', sub: c.freeSub, list: c.freeList, rec: false }, { name: c.pro, price: yearly ? c.proPriceY : c.proPriceM, per: yearly ? c.per[1] : c.per[0], sub: yearly ? (zh ? '相当于 ¥48 / 月' : 'about $6.6 / mo') : (zh ? '随时取消' : 'Cancel any time'), list: c.proList, rec: true }].map((pl) => (
+            {[{ name: c.free, price: '$0', per: '', sub: c.freeSub, list: c.freeList, rec: false }, { name: c.pro, price: yearly ? c.proPriceY : c.proPriceM, per: yearly ? c.per[1] : c.per[0], sub: yearly ? (zh ? '一次付清，永久使用' : 'Pay once, keep it forever') : (zh ? '自动续费，随时取消' : 'Renews monthly · cancel any time'), list: c.proList, rec: true }].map((pl) => (
               <div key={pl.name} className="ed-hair pt-6">
                 <div className="flex items-baseline justify-between"><span className="ed-caps">{pl.name}</span>{pl.rec && <span className="ed-caps text-ochre-2">{c.rec}</span>}</div>
                 <div className="serif text-[56px] font-medium leading-none mt-5">{pl.price}<span className="text-[18px] text-ink-2 ml-2">{pl.per}</span></div>

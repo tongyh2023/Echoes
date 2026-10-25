@@ -92,6 +92,15 @@ export default function Shell({ children, nav = true }) {
         )}
       </header>
       <main className="ed-wrap w-full py-10 flex-1">{children}</main>
+      {/* Privacy, terms and a contact on every signed-in page (payment providers require them to be reachable) */}
+      <footer className="border-t border-line">
+        <div className="ed-wrap py-5 flex flex-wrap items-center gap-x-6 gap-y-2 text-[12.5px] text-ink-3">
+          <span>© {new Date().getFullYear()} Echoes</span>
+          <a className="hover:text-ink" href="/privacy">{t('nav.privacy')}</a>
+          <a className="hover:text-ink" href="/terms">{t('nav.terms')}</a>
+          <a className="hover:text-ink" href="mailto:hello@echoestory.com">hello@echoestory.com</a>
+        </div>
+      </footer>
     </div>
   );
 }

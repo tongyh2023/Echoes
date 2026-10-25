@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Shell, { Avatar, PageHeader, TwoCol, useToast, useFamilyName, copyText } from '../components/Shell';
 import { useT, LANGUAGES } from '../lib/i18n';
-import { useStore } from '../lib/store';
+import { useStore, FREE_MEMBERS } from '../lib/store';
 import { profileView } from '../lib/loc';
 
 // "Family" = the family unit, not an invite form.
@@ -19,7 +19,9 @@ export default function Family() {
     : [you, ...state.invites];
   const isOwner = !live || state.family?.role === 'owner';
   // The current invite code and the link that carries it. Codes live in the invites table.
-  const code = live ? state.inviteCodes[0] : state.inviteCode;
+  // Free plan: you + 1 family member. When that's used up, no code is offered (the server refuses extra joins too).
+  const full = live && state.plan !== 'family' && state.members.length >= FREE_MEMBERS;
+  const code = full ? null : live ? state.inviteCodes[0] : state.inviteCode;
   const origin = typeof window !== 'undefined' && /^https?:/.test(window.location.origin) ? window.location.origin : 'https://echoestory.com';
   const inviteLink = code ? origin + '/invite/' + code : '';
   const newCode = async () => { setMaking(true); try { await createInvite(); toast(zh ? '新邀请码已生成' : 'New code created'); } catch (e) { toast((zh ? '没生成：' : 'Failed: ') + e.message); } finally { setMaking(false); } };
@@ -81,6 +83,12 @@ export default function Family() {
         <div className="aside-block">
           <div className="ed-caps mb-2">{t('invite.inviteTitle')}</div>
           <p className="text-[13.5px] text-ink-2 mb-4">{t('invite.inviteSub')}</p>
+          {full ? (
+            <div className="border-l-2 border-accent pl-4 text-[13.5px]">
+              <p className="m-0 mb-2">{zh ? '免费版可以邀请 1 位家人，你们家已经用完了。已经加入的家人会一直保留。' : 'The free plan includes 1 family member, and it’s in use. Members who already joined always stay.'}</p>
+              <button className="link" onClick={() => nav('/upgrade?why=members')}>{zh ? '升级家庭版，邀请更多家人' : 'Upgrade to invite more family'} →</button>
+            </div>
+          ) : (<>
           {!live && (<><input className="field w-full mb-4 text-[15px]" type="email" value={contact} onChange={(e) => setContact(e.target.value)} placeholder={t('invite.contactPh')} />
           <button className="btn btn-primary" disabled={!/^\S+@\S+\.\S+$/.test(contact)} onClick={() => { addInvite({ name: contact, sub: 'pending', perms }); setContact(''); toast(zh ? '邀请已发送' : 'Invitation sent'); }}>{t('invite.send')}</button></>)}
           <div className={(live ? '' : 'mt-6 pt-4 border-t border-line')}>
@@ -94,6 +102,7 @@ export default function Family() {
             {live && <button className="link-soft w-fit" disabled={making} onClick={newCode}>{zh ? '换一个新码' : 'Make a new code'}</button>}
             {live && <button className="link-soft w-fit !text-ink-3" onClick={async () => { await revokeInvite(code); toast(zh ? '已作废' : 'Revoked'); }}>{zh ? '作废这个码' : 'Revoke this code'}</button>}
           </div>}
+          </>)}
         </div>
       )} />
     </Shell>

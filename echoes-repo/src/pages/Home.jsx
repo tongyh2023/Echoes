@@ -52,7 +52,7 @@ export default function Home() {
           <div className="ed-caps mb-3">{zh ? '攒成一本' : 'Towards a book'}</div>
           <div className="tally mb-3">{Array.from({ length: FREE_LIMIT }).map((_, i) => <i key={i} className={i < n ? 'on' : ''} />)}</div>
           <p className="text-[14px] text-ink-2 m-0 leading-relaxed">{zh ? <>已有 <b className="text-ink">{n}</b> 个故事。攒到 {FREE_LIMIT} 个，就够做成一本小书了。</> : <><b className="text-ink">{n}</b> stories so far. At {FREE_LIMIT} there is enough for a small book.</>}</p>
-          {state.plan === 'free' && left <= 3 && <p className="text-[13px] text-ink-3 mt-3 mb-0">{left > 0 ? (zh ? `免费额度还剩 ${left} 个。` : `${left} free stories left.`) : (zh ? '免费的 10 个已用完。' : 'All 10 free stories used.')} <button className="link-soft" onClick={() => nav('/upgrade')}>{zh ? '看看家庭版' : 'Family plan'}</button></p>}
+          {state.plan === 'free' && left <= 3 && <p className="text-[13px] text-ink-3 mt-3 mb-0">{left > 0 ? (zh ? `免费额度还剩 ${left} 个。` : `${left} free stories left.`) : (zh ? `免费的 ${FREE_LIMIT} 个已用完。` : `All ${FREE_LIMIT} free stories used.`)} <button className="link-soft" onClick={() => nav('/upgrade')}>{zh ? '看看家庭版' : 'Family plan'}</button></p>}
         </div>
       </section>
 

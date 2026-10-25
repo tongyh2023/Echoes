@@ -5,7 +5,7 @@ import { createContext, useContext, useEffect, useState } from 'react';
 const dict = {
   zh: {
     app: 'Echoes',
-    nav: { notifications: '动态', stories: '故事', family: '家人', community: '社区', record: '录一个故事', back: '← 返回', settings: '设置' },
+    nav: { privacy: '隐私政策', terms: '服务条款', notifications: '动态', stories: '故事', family: '家人', community: '社区', record: '录一个故事', back: '← 返回', settings: '设置' },
     family: { defaultName: '{s}家', ours: '我们家', private: '私密空间 · 只有被邀请的成员能看到', rename: '改名', code: '邀请码', codeHint: '家人在注册页输入这个码就能加入，不需要链接。', join: '有邀请码？加入已有的家族', joinTitle: '加入家族', joinSub: '输入家人给你的邀请码。加入后你会有自己的账号，能看到家族里所有人的故事。', codePh: '例如 TONG-4821', joinBtn: '加入', badCode: '邀请码不对，再看一眼？', creator: '创建者', member: '成员', memberCan: '所有成员都能：读故事、听原声、确认注释、录自己的故事。创建者可以移除成员和管理付费。' },
     auth: { title: '把长辈的故事，用他自己的声音留下来。', sub: '先建一个账号。之后你可以为一位长辈建档，或者记录自己的故事。', email: '邮箱', pw: '密码', pwHint: '至少 8 位', create: '创建账号', have: '已有账号？', login: '登录' },
     mode: { title: '你想记录谁的故事？', self: '记录我自己的故事', selfSub: '我就是讲述者，自己选问题、自己录。', other: '替家人记录', otherSub: '我帮一位长辈建档、陪他录、替他整理。' },
@@ -29,7 +29,7 @@ const dict = {
   },
   en: {
     app: 'Echoes',
-    nav: { notifications: 'Activity', stories: 'Stories', family: 'Family', community: 'Community', record: 'Record a story', back: '← Back', settings: 'Settings' },
+    nav: { privacy: 'Privacy', terms: 'Terms', notifications: 'Activity', stories: 'Stories', family: 'Family', community: 'Community', record: 'Record a story', back: '← Back', settings: 'Settings' },
     family: { defaultName: 'The {s} family', ours: 'Our family', private: 'Private space · visible only to invited members', rename: 'Rename', code: 'Invite code', codeHint: 'Family can enter this code on the sign-up page to join — no link needed.', join: 'Have an invite code? Join a family', joinTitle: 'Join a family', joinSub: 'Enter the code a family member gave you. You get your own account and see every story in the family.', codePh: 'e.g. TONG-4821', joinBtn: 'Join', badCode: 'That code doesn’t match. Check it again?', creator: 'Creator', member: 'Member', memberCan: 'Every member can read, listen, confirm notes and record their own stories. The creator can remove members and manage billing.' },
     auth: { title: 'Keep your elders’ stories, in their own voice.', sub: 'Create an account first. Then set up a profile for an elder, or record your own story.', email: 'Email', pw: 'Password', pwHint: 'At least 8 characters', create: 'Create account', have: 'Already have an account?', login: 'Log in' },
     mode: { title: 'Whose story are you recording?', self: 'My own story', selfSub: 'I am the storyteller — I pick the questions and record.', other: 'For a family member', otherSub: 'I set up a profile for an elder, sit with them, and tidy up the stories.' },

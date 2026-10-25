@@ -16,7 +16,8 @@ const loadActive = () => { try { return sessionStorage.getItem(ACTIVE); } catch 
 // Keep the current selection if it still exists (or the one remembered in this tab), else the first storyteller.
 const pickActive = (tellers, current) => { const want = current || loadActive(); return tellers.some((t) => t.id === want) ? want : (tellers[0]?.id || null); };
 const storeDraft = (d) => { try { if (d) sessionStorage.setItem(DRAFT, JSON.stringify({ ...d, blob: false })); else sessionStorage.removeItem(DRAFT); } catch {} };
-export const FREE_LIMIT = 20;   // MVP: 20 stories free, then the Family plan
+export const FREE_LIMIT = 10;   // free plan: 10 stories, 1 storyteller, 1 invited family member
+export const FREE_MEMBERS = 2;   // you + 1 family member on the free plan (server enforces it too, migration 011)
 
 const fresh = () => ({
   signedIn: false, email: '', verified: false, plan: 'free',

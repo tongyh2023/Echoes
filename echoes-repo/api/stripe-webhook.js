@@ -3,7 +3,7 @@
 // Events to enable in Stripe → Developers → Webhooks: checkout.session.completed,
 // customer.subscription.updated, customer.subscription.deleted.
 import crypto from 'node:crypto';
-import { env, saveBilling, billingBySubscription } from './_billing.js';
+import { env, saveBilling, billingBySubscription, billingRow } from './_billing.js';
 
 export const config = { api: { bodyParser: false } };   // the signature is over the exact raw bytes
 
@@ -31,10 +31,18 @@ export default async function handler(req, res) {
     if (event.type === 'checkout.session.completed' && o.mode === 'subscription') {
       const familyId = o.metadata?.family_id || o.client_reference_id;
       if (familyId) await saveBilling({ family_id: familyId, plan: 'family', status: 'active', stripe_customer_id: o.customer, stripe_subscription_id: o.subscription });
+    } else if (event.type === 'checkout.session.completed' && o.mode === 'payment' && o.payment_status === 'paid') {
+      // Lifetime: paid once, no subscription, no renewal date.
+      const familyId = o.metadata?.family_id || o.client_reference_id;
+      if (familyId) await saveBilling({ family_id: familyId, plan: 'family', status: 'lifetime', stripe_customer_id: o.customer, stripe_subscription_id: null, current_period_end: null });
     } else if (event.type === 'customer.subscription.updated' || event.type === 'customer.subscription.deleted') {
       const familyId = o.metadata?.family_id || (await billingBySubscription(o.id))?.family_id;
-      const status = event.type === 'customer.subscription.deleted' ? 'canceled' : o.status;
-      if (familyId) await saveBilling({ family_id: familyId, plan: PAID.has(status) ? 'family' : 'free', status, stripe_customer_id: o.customer, stripe_subscription_id: o.id,
+      // A family that bought Lifetime keeps it, whatever happens to an old monthly subscription.
+      if (familyId && (await billingRow(familyId))?.status === 'lifetime') return res.status(200).json({ received: true, ignored: 'lifetime' });
+      const live = event.type === 'customer.subscription.deleted' ? 'canceled' : o.status;
+      // Cancelled in the portal but paid until the end of the month: still the Family plan, shown as "cancelled — active until …".
+      const status = PAID.has(live) && o.cancel_at_period_end ? 'cancelling' : live;
+      if (familyId) await saveBilling({ family_id: familyId, plan: PAID.has(live) ? 'family' : 'free', status, stripe_customer_id: o.customer, stripe_subscription_id: o.id,
         current_period_end: o.current_period_end ? new Date(o.current_period_end * 1000).toISOString() : (o.items?.data?.[0]?.current_period_end ? new Date(o.items.data[0].current_period_end * 1000).toISOString() : null) });
     }
     return res.status(200).json({ received: true });

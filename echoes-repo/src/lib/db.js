@@ -358,8 +358,8 @@ export async function billingInfo() {
   const r = await fetch('/api/checkout'); if (!r.ok) return { mode: 'waitlist' };
   return r.json();
 }
-export async function startCheckout(familyId) {
-  const r = await fetch('/api/checkout', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeader()) }, body: JSON.stringify({ familyId }) });
+export async function startCheckout(familyId, plan = 'monthly') {
+  const r = await fetch('/api/checkout', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeader()) }, body: JSON.stringify({ familyId, plan }) });
   const d = await r.json().catch(() => ({})); if (!r.ok || !d.url) throw new Error(d.error || 'HTTP ' + r.status);
   return d.url;
 }
