@@ -300,7 +300,7 @@ const feedRowToPost = (r, myFamilyId) => {
     title: r.title || '', excerpt: paras.join(' ').slice(0, 90) + (paras.join(' ').length > 90 ? '…' : ''), body: paras, marked: (r.text?.first || []).map(String),
     terms: r.terms || [], lang: r.lang || 'zh', topics: r.topics || [], era: r.era || '', place: r.place || '',
     date: (r.created_at || '').slice(0, 10), readMin: Math.max(1, Math.round(paras.join('').length / 400)),
-    image: null, photo: r.photo || null, cover: 'warm', likes: r.likes || 0, liked: Boolean(r.liked),
+    image: null, photo: r.photo || null, cover: 'warm', likes: r.likes || 0, liked: Boolean(r.liked), sample: Boolean(r.sample),
   };
 };
 
@@ -308,7 +308,8 @@ export async function loadFeed(myFamilyId) {
   const rows = unwrap(await supabase.rpc('community_feed'));
   const posts = (rows || []).map((r) => feedRowToPost(r, myFamilyId));
   // The first photo of each published story: sign a link (storage allows it once the story is published).
-  await Promise.all(posts.filter((p) => p.photo).map(async (p) => { p.image = await getAudioUrl(p.photo).catch(() => null); }));
+  // Sample stories use site images (/samples/…); everything else is a private file that needs a signed link.
+  await Promise.all(posts.filter((p) => p.photo).map(async (p) => { p.image = p.photo.startsWith('/') ? p.photo : await getAudioUrl(p.photo).catch(() => null); }));
   return posts;
 }
 

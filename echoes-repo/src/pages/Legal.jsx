@@ -1,29 +1,8 @@
 import Public from '../components/Public';
 import { useT } from '../lib/i18n';
 import { useNavigate } from 'react-router-dom';
+import { PRIVACY } from './privacyText';
 
-const PRIVACY = {
-  zh: { title: '隐私政策', updated: '最后更新：2026 年 10 月', sections: [
-    ['我们收集什么', '你主动提供的内容：录音、文字、照片、视频、音乐，以及讲述者档案（称呼、出生年份、老家、住过的地方、语言和方言）。账号信息：邮箱。我们不收集族裔、宗教、政治立场、健康状况等敏感类别信息，档案里也没有这些字段。'],
-    ['为什么收集', '出生年份、老家、语言和方言只用于两件事：挑选适合的问题，以及在整理故事时正确理解方言词和时代背景。不用于广告，不卖给第三方。'],
-    ['AI 如何处理你的录音', '录音会发送给语音转写和文本整理服务以生成故事和注释。处理后的结果只保存在你的账号里。我们不用你的录音训练任何模型。'],
-    ['谁能看到', '默认只有你。被你邀请的家人按你设置的权限看到（读听 / 纠正注释 / 添加故事）。只有当你对某个故事点击"发布到社区"并确认讲述者同意后，该故事才对其他用户可见；可随时取消发布。'],
-    ['讲述者的权利', '讲述者（通常是长辈）有权要求查看、更正或删除以他为主角的任何内容，即使账号不是他本人注册的。联系我们即可。'],
-    ['保存多久、怎么删除', '内容保存到你删除为止。你可以在设置里一键导出全部内容，或删除账号。删除后 30 天内可恢复，之后彻底清除，包括备份。'],
-    ['未成年人', '本服务面向成年家庭成员。如果一位讲述者或协助者未满 18 岁，需要监护人同意。'],
-    ['联系我们', 'hello@echoestory.com'],
-  ] },
-  en: { title: 'Privacy Policy', updated: 'Last updated: October 2026', sections: [
-    ['What we collect', 'Content you provide: recordings, text, photos, video, music, and the storyteller profile (name, year of birth, hometown, places lived, language and dialect). Account: email. We do not collect sensitive categories such as ethnicity, religion, political views or health — the profile has no such fields.'],
-    ['Why', 'Year of birth, hometown, language and dialect are used for two things only: choosing fitting questions, and understanding dialect words and era context when tidying a story. Never for advertising; never sold.'],
-    ['How AI handles your recordings', 'Recordings are sent to speech-to-text and text-tidying services to produce the story and notes. Results are stored only in your account. We do not train models on your recordings.'],
-    ['Who can see it', 'Only you, by default. Family you invite see what you allow (read & listen / correct notes / add stories). A story becomes visible to other users only after you click “Publish to community” and confirm the storyteller agrees; you can unpublish at any time.'],
-    ['The storyteller’s rights', 'The storyteller (usually the elder) may ask to see, correct or delete any content about them, even if the account is not theirs. Contact us.'],
-    ['Retention and deletion', 'Content is kept until you delete it. Export everything in one click from Settings, or delete the account — recoverable for 30 days, then permanently erased including backups.'],
-    ['Minors', 'The service is for adult family members. A storyteller or helper under 18 needs a guardian’s consent.'],
-    ['Contact', 'hello@echoestory.com'],
-  ] },
-};
 const TERMS = {
   zh: { title: '服务条款', updated: '最后更新：2026 年 10 月', sections: [
     ['服务内容', '余音提供问题库、录音、AI 整理与注释、档案、家人邀请和社区功能。AI 生成的文字是对口述的整理，可能有错误，以原声和你确认后的版本为准。'],
@@ -53,7 +32,15 @@ export default function Legal({ kind }) {
         <button className="ed-caps hover:!text-ink cursor-pointer mb-6" onClick={() => (window.history.length > 1 ? nav(-1) : nav('/'))}>{lang === 'zh' ? '← 返回' : '← Back'}</button>
         <div className="eyebrow mb-2">{d.updated}</div>
         <h1 className="text-[34px] font-semibold mb-8">{d.title}</h1>
-        {d.sections.map(([h, p]) => <section key={h} className="mb-7"><h2 className="text-[19px] font-semibold mb-1.5">{h}</h2><p className="text-ink-2 m-0 leading-[1.8]">{p}</p></section>)}
+        {d.intro && <p className="text-ink-2 leading-[1.8] mb-8">{d.intro}</p>}
+        {/* content: a string = one paragraph; a list = paragraphs and bullet lists (see privacyText.js) */}
+        {d.sections.map(([h, p]) => (
+          <section key={h} className="mb-7"><h2 className="text-[19px] font-semibold mb-1.5">{h}</h2>
+            {(Array.isArray(p) ? p : [p]).map((part, k) => Array.isArray(part)
+              ? <ul key={k} className="text-ink-2 leading-[1.8] pl-5 my-2 list-disc">{part.map((li) => <li key={li} className="mb-1">{li}</li>)}</ul>
+              : <p key={k} className="text-ink-2 m-0 mb-2 leading-[1.8]">{part}</p>)}
+          </section>
+        ))}
       </article>
     </Public>
   );

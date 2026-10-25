@@ -46,6 +46,7 @@ export default function Community() {
       <button className="font-medium hover:underline underline-offset-4 cursor-pointer" onClick={() => nav('/people/' + encodeURIComponent(po.author))}>{po.author}</button>
       <span className="text-ink-3 truncate">{po.authorSub}</span>
       {po.mine && <span className="ed-caps !text-accent">{t('community.mine')}</span>}
+      {po.sample && <span className="tag tag-ok" title={zh ? '余音团队整理的示例故事' : 'An example story from the Echoes team'}>{zh ? '示例' : 'Sample'}</span>}
     </div>
   );
   const Meta = ({ po }) => <div className="ed-caps mt-3">{[po.place, po.era, zh ? `${po.readMin} 分钟` : `${po.readMin} min`, LANGUAGES.find((l) => l.code === po.lang)?.label || po.lang].join(' · ')}</div>;
@@ -78,7 +79,7 @@ export default function Community() {
                   <p className="story text-[15.5px] leading-[1.8] text-ink-2 m-0 line-clamp-2" style={{ maxWidth: 'none' }}>{tv(po).excerpt}</p>
                   <Meta po={po} /><Actions po={po} /><Comments po={po} />
                 </div>
-                {po.image ? <img src={po.image} alt="" className="hidden md:block w-[150px] aspect-square object-cover cursor-pointer rounded-[4px]" onClick={() => openPost(po)} /> : null}
+                {po.image ? <img src={po.image} alt="" className="order-first md:order-none block w-full md:w-[150px] aspect-[3/2] md:aspect-square object-cover cursor-pointer rounded-[4px]" onClick={() => openPost(po)} /> : null}
               </article>
             ))}
             {rest.length === 0 && !featured && <p className="text-ink-3 py-10 m-0">{t('community.noneFilter')}</p>}

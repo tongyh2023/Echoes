@@ -47,7 +47,8 @@ export default function Read() {
       )}
       <TwoCol asideWidth={260} main={(
         <article className="max-w-[720px]">
-          {po.image && <img src={po.image} alt="" className="block w-full aspect-[3/2] object-cover mb-8" />}
+          {po.sample && <p className="text-[13px] text-ink-2 bg-gold-soft rounded-[4px] px-4 py-2.5 mb-6">{zh ? '这是余音团队整理的示例故事，用来展示一个家族故事在社区里的样子。' : 'This is an example story from the Echoes team, to show what a family story looks like in the community.'}</p>}
+          {po.image && <img src={po.image} alt="" className="block w-full aspect-[3/2] object-cover rounded-[4px] mb-8" />}
           <div className="ed-caps mb-3">{[po.place, po.era, LANGUAGES.find((l) => l.code === po.lang)?.label].filter(Boolean).join(' · ')}</div>
           <h1 className="serif font-medium text-[38px] leading-[1.2] m-0 mb-4">{view.title}</h1>
           {live && <div className="flex flex-wrap items-center gap-4 text-[13.5px] mb-6">
