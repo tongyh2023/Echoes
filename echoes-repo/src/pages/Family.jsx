@@ -58,6 +58,24 @@ export default function Family() {
               ))}
             </div>
           </section>
+          {/* every story in the family, whoever recorded it and for whichever storyteller */}
+          <section>
+            <div className="flex items-baseline justify-between border-b border-ink pb-2 mb-1"><h2 className="h2 m-0">{zh ? '家里的故事' : 'Family stories'}</h2><span className="ed-caps">{allStories.length}</span></div>
+            {allStories.length === 0 ? <p className="text-[13.5px] text-ink-3 mt-3">{zh ? '还没有故事。' : 'No stories yet.'}</p> : (
+              <div className="divide-y divide-line border-b border-line">
+                {[...allStories].sort((a, b) => String(b.date).localeCompare(String(a.date))).map((s) => {
+                  const teller = profileView(state.storytellers.find((x) => x.id === s.storytellerId), lang);
+                  const by = live ? state.members.find((m) => m.userId === s.authorId) : null;
+                  return (
+                    <a key={s.id} href={'/story/' + s.id} onClick={(e) => { if (e.metaKey || e.ctrlKey) return; e.preventDefault(); if (s.storytellerId) setActive(s.storytellerId); nav('/story/' + s.id); }} className="py-4 grid grid-cols-[1fr_auto] gap-4 items-baseline hover:bg-line-2/40 -mx-2 px-2">
+                      <span className="min-w-0"><span className="block font-medium truncate">{s.title || (zh ? '（无标题）' : '(untitled)')}</span><span className="block text-[12.5px] text-ink-2 truncate">{[teller?.name, by?.name && (zh ? `${by.name} 录的` : `recorded by ${by.name}`)].filter(Boolean).join(' · ')}</span></span>
+                      <span className="text-[12.5px] text-ink-3 tabular-nums">{s.date}</span>
+                    </a>
+                  );
+                })}
+              </div>
+            )}
+          </section>
         </div>
       )} aside={(
         <div className="aside-block">

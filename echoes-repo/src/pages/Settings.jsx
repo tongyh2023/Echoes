@@ -9,8 +9,8 @@ import { billingInfo, startCheckout, openPortal, joinWaitlist } from '../lib/db'
 
 export default function Settings() {
   const { lang } = useT(); const zh = lang === 'zh'; const nav = useNavigate();
-  const { state, allStories, setActive, setPlan, deleteAccount, updateStoryteller, reset, seedDemo, setMeAvatar, live } = useStore(); const auth = useAuth(); const [demoBusy, setDemoBusy] = useState(false);
-  const [confirmDel, setConfirmDel] = useState(false); const [exported, setExported] = useState(false);
+  const { state, allStories, setActive, setPlan, deleteAccount, updateStoryteller, reset, seedDemo, setMeAvatar, setMyName, live } = useStore(); const auth = useAuth(); const [demoBusy, setDemoBusy] = useState(false);
+  const [confirmDel, setConfirmDel] = useState(false); const [myName, setMyNameDraft] = useState(null); const [nameSaved, setNameSaved] = useState(false);
   const { refreshBilling } = useStore(); const loc = useLocation(); const [justPaid, setJustPaid] = useState(false);
   // Back from Stripe Checkout: the webhook usually lands within seconds — check a few times.
   useEffect(() => {
@@ -55,26 +55,26 @@ export default function Settings() {
         </Section>
 
         <Section title={zh ? '账号' : 'Account'}>
-          <div className="flex items-center gap-4 mb-5"><Avatar name={state.email ? state.email.split('@')[0] : '我'} src={state.meAvatar} size="w-14 h-14 text-[18px]" onPick={setMeAvatar} /><div className="text-[13.5px] text-ink-2">{zh ? '我的头像 · 点击更换' : 'My photo · click to change'}</div></div>
+          <div className="flex items-center gap-4 mb-5"><Avatar name={state.userName || (state.email ? state.email.split('@')[0] : '我')} src={state.meAvatar} size="w-14 h-14 text-[18px]" onPick={setMeAvatar} /><div className="text-[13.5px] text-ink-2">{zh ? '我的头像 · 点击更换' : 'My photo · click to change'}</div></div>
+          <label className="label">{zh ? '我的名字（家人看到的）' : 'My name (what family sees)'}</label>
+          <div className="flex gap-3 mb-5 max-w-[420px]"><input className="input flex-1" value={myName ?? state.userName ?? ''} onChange={(e) => { setMyNameDraft(e.target.value); setNameSaved(false); }} placeholder={zh ? '例如：小童' : 'e.g. Helen'} /><button className="btn" disabled={!String(myName ?? '').trim() || myName === state.userName} onClick={async () => { try { await setMyName(myName); setNameSaved(true); setMyNameDraft(null); } catch { alert(zh ? '没保存上，请再试一次。' : 'Could not save. Please try again.'); } }}>{nameSaved ? '✓' : (zh ? '保存' : 'Save')}</button></div>
           <div className="text-[14px] mb-4"><span className="text-ink-2">{zh ? '邮箱' : 'Email'}</span> · {state.email || '—'} {state.verified ? <span className="ed-caps !text-accent ml-2">{zh ? '已验证' : 'Verified'}</span> : <span className="ed-caps ml-2">{zh ? '未验证' : 'Unverified'}</span>}</div>
           <div className="flex flex-wrap items-center gap-6">
-            <button className="btn" onClick={() => { setExported(true); setTimeout(() => setExported(false), 2500); }}>{exported ? (zh ? '✓ 已开始打包，稍后发到邮箱' : '✓ Packing — link by email shortly') : (zh ? '导出全部内容' : 'Export everything')}</button>
             <button className="link-soft text-[14px]" onClick={async () => { await auth.signOut(); nav('/'); }}>{zh ? '退出登录' : 'Log out'}</button>
           </div>
-          <p className="text-[12.5px] text-ink-3 mt-2 m-0">{zh ? '导出包含所有录音、文字、照片和注释，zip 格式。' : 'Export includes all recordings, text, photos and notes as a zip.'}</p>
         </Section>
 
         <Section title={zh ? '删除账号' : 'Delete account'}>
-          {!confirmDel ? (<><p className="text-[14px] text-ink-2 mb-3">{zh ? '删除后 30 天内可以恢复，之后彻底清除，包括备份。建议先导出。' : 'Recoverable for 30 days, then permanently erased including backups. Export first.'}</p><button className="link-soft text-[14px] !text-rec" onClick={() => setConfirmDel(true)}>{zh ? '删除账号…' : 'Delete account…'}</button></>)
-            : (<div className="border-l-2 border-rec pl-5 py-1"><p className="text-[14px] mb-3 m-0">{zh ? `确定删除？${used} 个故事和所有录音将在 30 天后被清除。` : `Delete? ${used} stories and all recordings will be erased after 30 days.`}</p><div className="flex items-center gap-6"><button className="btn bg-rec text-white border-rec" onClick={() => { deleteAccount(); nav('/deleted'); }}>{zh ? '确定删除' : 'Yes, delete'}</button><button className="link-soft text-[14px]" onClick={() => setConfirmDel(false)}>{zh ? '取消' : 'Cancel'}</button></div></div>)}
+          {live
+            ? <p className="text-[14px] text-ink-2 m-0">{zh ? '想删除账号和所有内容，请发邮件到 ' : 'To delete your account and everything in it, email '}<a className="link" href={'mailto:hello@echoestory.com?subject=' + encodeURIComponent(zh ? '删除我的余音账号' : 'Delete my Echoes account') + '&body=' + encodeURIComponent((zh ? '账号邮箱：' : 'Account email: ') + (state.email || ''))}>hello@echoestory.com</a>{zh ? '，我们会在 30 天内删除。' : ' and we will delete it within 30 days.'}</p>
+            : (!confirmDel ? <button className="link-soft text-[14px] !text-rec" onClick={() => setConfirmDel(true)}>{zh ? '删除账号…' : 'Delete account…'}</button>
+              : <div className="flex items-center gap-6"><button className="btn bg-rec text-white border-rec" onClick={() => { deleteAccount(); nav('/deleted'); }}>{zh ? '确定删除（演示）' : 'Yes, delete (demo)'}</button><button className="link-soft text-[14px]" onClick={() => setConfirmDel(false)}>{zh ? '取消' : 'Cancel'}</button></div>)}
         </Section>
 
-        {/* DEV ONLY — remove before launch. Clears all demo data in this browser. */}
-        {live ? (
-          <p className="text-[12px] text-ink-3 mt-8 text-center">{zh ? '示例数据' : 'Sample data'} · {allStories.some((x) => x.demo)
-            ? <button className="underline cursor-pointer" disabled={demoBusy} onClick={async () => { setDemoBusy(true); try { await reset(); } finally { setDemoBusy(false); } }}>{demoBusy ? '…' : (zh ? '删除示例故事' : 'Remove sample stories')}</button>
-            : <button className="underline cursor-pointer" disabled={demoBusy} onClick={async () => { setDemoBusy(true); try { await seedDemo(); nav('/home'); } finally { setDemoBusy(false); } }}>{demoBusy ? '…' : (zh ? '导入示例故事（童爷爷 · 3 个）' : 'Import sample stories (Grandpa Tong · 3)')}</button>}</p>
-        ) : (
+        {/* Sample data is a preview-only tool. Real accounts only get a way to remove sample stories imported earlier. */}
+        {live ? (allStories.some((x) => x.demo) && (
+          <p className="text-[12px] text-ink-3 mt-8 text-center">{zh ? '示例数据' : 'Sample data'} · <button className="underline cursor-pointer" disabled={demoBusy} onClick={async () => { setDemoBusy(true); try { await reset(); } finally { setDemoBusy(false); } }}>{demoBusy ? '…' : (zh ? '删除示例故事' : 'Remove sample stories')}</button></p>
+        )) : (
         <p className="text-[12px] text-ink-3 mt-8 text-center">{zh ? '演示环境' : 'Demo environment'} · <button className="underline cursor-pointer" onClick={() => { reset(); nav('/'); }}>{zh ? '清空演示数据（开发用）' : 'Clear demo data (dev)'}</button></p>
         )}
       </Narrow>
@@ -92,13 +92,13 @@ export function Upgrade() {
   const pay = async () => { setBusy(true); setErr(''); try { window.location.href = await startCheckout(state.family.id); } catch (e) { setErr(zh ? '没能打开付款页，请稍后再试。' : 'Could not open the payment page. Please try again.'); setBusy(false); } };
   const wait = async () => { if (!/^\S+@\S+\.\S+$/.test(email)) return setErr(zh ? '邮箱格式不对。' : 'That email doesn’t look right.'); setBusy(true); setErr('');
     try { await joinWaitlist(email, state.userId, state.family?.id); setJoined(true); } catch { setErr(zh ? '没能加入，请稍后再试。' : 'Could not add you. Please try again.'); } finally { setBusy(false); } };
-  const perks = zh ? [`超过 ${FREE_LIMIT} 个故事之后继续录`, '多位讲述者', '不限家人数量', '照片和视频'] : [`Keep recording after ${FREE_LIMIT} stories`, 'Multiple storytellers', 'Unlimited family members', 'Photos and video'];
+  const perks = zh ? [`超过 ${FREE_LIMIT} 个故事之后继续录`, '多位讲述者', '不限家人数量'] : [`Keep recording after ${FREE_LIMIT} stories`, 'Multiple storytellers', 'Unlimited family members'];
   return (
     <Shell>
       <Narrow className="pt-6">
         <div className="ed-caps mb-3">{zh ? '家庭版' : 'Family plan'}</div>
         <h1 className="serif font-medium text-[34px] leading-[1.25] m-0 mb-3">{why === 'storyteller' ? (zh ? '再给一位长辈建档，需要家庭版。' : 'A second storyteller needs the Family plan.') : why === 'limit' ? (zh ? `前 ${FREE_LIMIT} 个故事已经录满了。` : `You’ve used your ${FREE_LIMIT} free stories.`) : (zh ? '升级到家庭版' : 'Upgrade to Family')}</h1>
-        <p className="text-ink-2 mb-7">{zh ? '已有的故事和录音永远可读、可下载，无论付不付费。' : 'Existing stories and recordings stay readable and downloadable, paid or not.'}</p>
+        <p className="text-ink-2 mb-7">{zh ? '已有的故事、录音和照片永远保留，无论付不付费。照片对所有人免费。' : 'Existing stories, recordings and photos always stay, paid or not. Photos are free for everyone.'}</p>
         {canceled && <p className="text-[13.5px] text-ink-2 border-l-2 border-line pl-3 mb-6">{zh ? '付款没有完成，没有扣任何钱。' : 'Payment was not completed — nothing was charged.'}</p>}
         <div className="border-t border-ink pt-6">
           <ul className="m-0 p-0 list-none grid gap-2 text-[14.5px] mb-6">{perks.map((x) => <li key={x}>— {x}</li>)}</ul>

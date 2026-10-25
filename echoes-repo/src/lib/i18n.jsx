@@ -1,4 +1,4 @@
-import { createContext, useContext, useState } from 'react';
+import { createContext, useContext, useEffect, useState } from 'react';
 
 // UI strings. zh is complete; en covers the same keys so the switch works everywhere.
 // Story CONTENT (questions, stories, annotations) is not translated — it follows the storyteller’s language.
@@ -55,7 +55,10 @@ const dict = {
 
 const Ctx = createContext(null);
 export function I18nProvider({ children }) {
-  const [lang, setLang] = useState(() => (navigator.language || 'zh').toLowerCase().startsWith('zh') ? 'zh' : 'en');
+  const [lang, setLangState] = useState(() => { try { const v = localStorage.getItem('echoes-lang'); if (v === 'zh' || v === 'en') return v; } catch {} return (navigator.language || 'zh').toLowerCase().startsWith('zh') ? 'zh' : 'en'; });
+  const setLang = (v) => { setLangState(v); try { localStorage.setItem('echoes-lang', v); } catch {} };
+  // Screen readers and browser translation read <html lang>, so it follows the interface language.
+  useEffect(() => { document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en'; }, [lang]);
   const t = (path, vars = {}) => {
     const v = path.split('.').reduce((o, k) => (o ? o[k] : undefined), dict[lang]) ?? path;
     return typeof v === 'string' ? v.replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? '') : v;

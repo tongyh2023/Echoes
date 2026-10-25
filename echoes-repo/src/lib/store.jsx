@@ -29,7 +29,7 @@ const fresh = () => ({
   feedReady: !hasSupabase,                     // false until the community feed has been fetched once
   storytellers: [], activeId: loadActive(),   // several storytellers per account
   stories: [], posts: hasSupabase ? [] : COMMUNITY_POSTS, draft: loadDraft(),
-  invites: [{ name: 'Helen', sub: '孙女', perms: ['read', 'correct', 'add'] }],
+  invites: hasSupabase ? [] : [{ name: 'Helen', sub: '孙女', perms: ['read', 'correct', 'add'] }],
   familyName: '',                              // '' → derived from the first storyteller's surname
   inviteCode: 'TONG-4821',
   consent: {},                                 // storyId -> true once consent confirmed for publishing
@@ -56,6 +56,9 @@ async function loadFamilyData(family) {
   ]);
   return { storytellers, members, inviteCodes, stories, customQuestions, reactions, plan: billing?.plan === 'family' ? 'family' : 'free', billing };
 }
+
+// My own row among the members carries my saved display name and photo.
+const mine = (members, s) => { const me = (members || []).find((m) => m.userId === s.userId); return me ? { userName: me.name || s.userName, meAvatar: me.avatar || s.meAvatar } : {}; };
 
 export function StoreProvider({ children }) {
   const [state, setState] = useState(fresh);
@@ -85,15 +88,15 @@ export function StoreProvider({ children }) {
         let pending = getPendingInvite(); let fromAccount = false;
         if (!pending) { const { data } = await supabase.auth.getUser(); pending = data?.user?.user_metadata?.invite || null; fromAccount = Boolean(pending); }
         if (pending) {
-          const already = await db.loadMyFamily().catch(() => null);
-          if (!already) { try { await db.joinFamily(pending); } catch (e) { console.warn('[echoes] pending invite failed', e); } }
+          // join_family (migration 010) also removes an empty family of your own, so the invite always wins.
+          try { await db.joinFamily(pending); } catch (e) { console.warn('[echoes] pending invite failed', e); }
           clearPendingInvite();
           supabase.auth.updateUser({ data: { invite: null } }).catch(() => {});
         }
         const family = await db.loadMyFamily();
         const data = await loadFamilyData(family);
         const posts = await db.loadFeed(family?.id).catch((e) => { console.warn('[echoes] feed failed', e?.message || e); return []; });
-        if (alive) setState((s) => ({ ...s, family, ...data, posts, feedReady: true, activeId: pickActive(data.storytellers, s.activeId), dataReady: true }));
+        if (alive) setState((s) => ({ ...s, family, ...data, ...mine(data.members, s), posts, feedReady: true, activeId: pickActive(data.storytellers, s.activeId), dataReady: true }));
       } catch (e) { console.error('[echoes] load family failed', e); if (alive) setState((s) => ({ ...s, dataReady: true })); }
     })();
     return () => { alive = false; };
@@ -174,7 +177,7 @@ export function StoreProvider({ children }) {
     reloadFamily: async () => {
       const family = await db.loadMyFamily();
       const data = await loadFamilyData(family);
-      setState((s) => ({ ...s, family, ...data, activeId: pickActive(data.storytellers, s.activeId), dataReady: true }));
+      setState((s) => ({ ...s, family, ...data, ...mine(data.members, s), activeId: pickActive(data.storytellers, s.activeId), dataReady: true }));
     },
     // Make a fresh invite code for this family (owner or any member).
     createInvite: async () => {
@@ -262,7 +265,13 @@ export function StoreProvider({ children }) {
     },
     updateQuestion: async (id, patch) => { setState((s) => ({ ...s, customQuestions: s.customQuestions.map((q) => (q.id === id ? { ...q, ...patch } : q)) })); if (live) await db.updateQuestion(id, patch); },
     removeQuestion: async (id) => { setState((s) => ({ ...s, customQuestions: s.customQuestions.filter((q) => q.id !== id) })); if (live) await db.deleteQuestion(id); },
-    setMeAvatar: async (meAvatar) => { setState((s) => ({ ...s, meAvatar })); if (live && state.userId) { try { await db.updateMyProfile(state.userId, { name: state.userName || state.email.split('@')[0], avatar: meAvatar }); } catch (e) { console.warn(e); } } },
+    // My display name (shown to family members and on notifications). Saved on the profile row and the account.
+    setMyName: async (name) => {
+      const n = String(name || '').trim(); if (!n) return;
+      setState((s) => ({ ...s, userName: n, members: s.members.map((m) => (m.userId === s.userId ? { ...m, name: n } : m)) }));
+      if (live && state.userId) { await db.updateMyProfile(state.userId, { name: n }); supabase.auth.updateUser({ data: { name: n } }).catch(() => {}); }
+    },
+    setMeAvatar: async (meAvatar) => { setState((s) => ({ ...s, meAvatar })); if (live && state.userId) { try { await db.updateMyProfile(state.userId, { avatar: meAvatar }); } catch (e) { console.warn(e); } } },
     setInviteAvatar: (i, avatar) => setState((s) => ({ ...s, invites: s.invites.map((v, k) => (k === i ? { ...v, avatar } : v)) })),
     // Toggle an emoji under a story. Real mode: one row per person × emoji in story_reactions.
     react: async (storyId, who, emoji) => {

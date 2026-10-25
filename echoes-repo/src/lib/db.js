@@ -4,6 +4,7 @@
 // That keeps table names and column names in one place, so a schema change
 // is a one-file edit. Each function returns plain objects the app already uses.
 import { supabase } from './supabase';
+import { stripEn } from './loc';
 
 // Turn Supabase's { data, error } into "data or throw".
 const unwrap = ({ data, error }) => { if (error) throw error; return data; };
@@ -14,7 +15,7 @@ const unwrap = ({ data, error }) => { if (error) throw error; return data; };
 export async function loadMyFamily() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
-  const rows = unwrap(await supabase.from('family_members').select('role, families(id, name, created_by, created_at)').eq('user_id', user.id).limit(1));
+  const rows = unwrap(await supabase.from('family_members').select('role, joined_at, families(id, name, created_by, created_at)').eq('user_id', user.id).order('joined_at', { ascending: false }).limit(1));
   const m = rows?.[0];
   return m?.families ? { id: m.families.id, name: m.families.name, role: m.role } : null;
 }
@@ -33,11 +34,11 @@ export async function renameFamily(id, name) {
 // ---------- storytellers ----------
 
 // Database row → the profile object the pages already use.
-const rowToStoryteller = (r) => ({ ...(r.profile || {}), id: r.id, familyId: r.family_id, name: r.name, hometown: r.profile?.hometown || r.home || '', dialects: r.profile?.dialects || (r.dialect ? [r.dialect] : []), avatar: r.avatar_url || r.profile?.avatar || null });
+const rowToStoryteller = (r) => ({ ...stripEn(r.profile || {}), id: r.id, familyId: r.family_id, name: r.name, hometown: r.profile?.hometown || r.home || '', dialects: r.profile?.dialects || (r.dialect ? [r.dialect] : []), avatar: r.avatar_url || r.profile?.avatar || null });
 
 // Profile object → database row. name / home / dialect are mirrored into real columns
 // so they are readable in the Supabase dashboard; the full form lives in `profile`.
-const storytellerToRow = (p) => ({ name: p.name, home: p.hometown || null, dialect: p.dialects?.[0] || null, avatar_url: p.avatar || null, profile: { ...p, id: undefined, familyId: undefined } });
+const storytellerToRow = (p) => ({ name: p.name, home: p.hometown || null, dialect: p.dialects?.[0] || null, avatar_url: p.avatar || null, profile: { ...stripEn(p), id: undefined, familyId: undefined } });
 
 export async function loadStorytellers(familyId) {
   const rows = unwrap(await supabase.from('storytellers').select('*').eq('family_id', familyId).order('created_at'));
@@ -68,7 +69,8 @@ export async function removeMember(familyId, userId) {
 
 // My own display name / photo (profiles row is created automatically at sign-up).
 export async function updateMyProfile(userId, patch) {
-  unwrap(await supabase.from('profiles').update({ name: patch.name, avatar_url: patch.avatar }).eq('id', userId));
+  const row = {}; if (patch.name !== undefined) row.name = patch.name; if (patch.avatar !== undefined) row.avatar_url = patch.avatar;
+  unwrap(await supabase.from('profiles').update(row).eq('id', userId));
 }
 
 // ---------- invites ----------
@@ -277,6 +279,12 @@ export async function getAudioUrl(path) {
   return signedUrl;
 }
 
+// Removes a story's files (recording + photos/videos) from storage. Empty entries are skipped.
+export async function deleteFiles(paths) {
+  const list = (paths || []).filter(Boolean);
+  if (list.length) unwrap(await supabase.storage.from('audio').remove(list));
+}
+
 export async function deleteAudio(path) {
   if (path) unwrap(await supabase.storage.from('audio').remove([path]));
 }
@@ -289,7 +297,7 @@ const feedRowToPost = (r, myFamilyId) => {
   return {
     id: r.id, storyId: r.id, familyId: r.family_id, mine: Boolean(myFamilyId) && r.family_id === myFamilyId,
     author: r.author || r.family_name || '', authorSub: r.author_sub || '', avatar: r.author_avatar || null,
-    title: r.title || '', excerpt: paras.join(' ').slice(0, 90) + (paras.join(' ').length > 90 ? '…' : ''), body: paras,
+    title: r.title || '', excerpt: paras.join(' ').slice(0, 90) + (paras.join(' ').length > 90 ? '…' : ''), body: paras, marked: (r.text?.first || []).map(String),
     terms: r.terms || [], lang: r.lang || 'zh', topics: r.topics || [], era: r.era || '', place: r.place || '',
     date: (r.created_at || '').slice(0, 10), readMin: Math.max(1, Math.round(paras.join('').length / 400)),
     image: null, photo: r.photo || null, cover: 'warm', likes: r.likes || 0, liked: Boolean(r.liked),
@@ -363,4 +371,18 @@ export async function openPortal(familyId) {
 export async function joinWaitlist(email, userId, familyId) {
   const { error } = await supabase.from('waitlist').insert({ email: String(email).trim().toLowerCase(), user_id: userId, family_id: familyId || null });
   if (error && error.code !== '23505') throw error;   // already on the list = fine
+}
+
+// ---------- AI text tools (server functions; keys never reach the browser) ----------
+// "Polish with AI": smoother wording only — the server refuses any result that adds text.
+export async function polishText(paragraphs, lang) {
+  const r = await fetch('/api/polish', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeader()) }, body: JSON.stringify({ paragraphs, lang }) });
+  const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.error || 'HTTP ' + r.status);
+  return d;   // { paragraphs, changed }
+}
+// Community translation (Chinese ↔ English). Cached on the story after the first request.
+export async function translateStory(storyId, to) {
+  const r = await fetch('/api/translate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ storyId, to }) });
+  const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.error || 'HTTP ' + r.status);
+  return d;   // { title, paragraphs, terms }
 }

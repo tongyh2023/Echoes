@@ -78,6 +78,7 @@ function App() {
     <Routes>
       {/* public */}
       <Route path="/" element={<Landing />} />
+      <Route path="/pricing" element={<Navigate to="/" replace state={{ scrollTo: 'pricing' }} />} />
       <Route path="/privacy" element={<Legal kind="privacy" />} />
       <Route path="/terms" element={<Legal kind="terms" />} />
       <Route path="/invite/:code" element={<InviteLanding />} />

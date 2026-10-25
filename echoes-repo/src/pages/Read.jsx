@@ -4,21 +4,36 @@ import Shell, { Avatar, PageHeader, TwoCol, useToast } from '../components/Shell
 import { useT, LANGUAGES } from '../lib/i18n';
 import { useStore } from '../lib/store';
 import { postView } from '../lib/loc';
+import StoryText from '../components/StoryText';
+import { translateStory } from '../lib/db';
 
 // A community story on its own page (no modal): read and like — then back to the community or on to the author.
 // If the post is one of this family's own stories, the real story page (with audio) is where it opens instead.
 export default function Read() {
   const { t, lang } = useT(); const zh = lang === 'zh'; const nav = useNavigate(); const { id } = useParams(); const loc = useLocation();
-  const { state, updatePost, publish, likePost, commentPost, loadComments, live } = useStore();
+  const { state, updatePost, publish, likePost, commentPost, loadComments, live, allStories } = useStore();
   const raw = state.posts.find((p) => p.id === id); const po = raw ? postView(raw, lang) : null;
-  const [draft, setDraft] = useState(''); const [follow, setFollow] = useState(false); const [toast, toastEl] = useToast();
+  const [draft, setDraft] = useState(''); const [toast, toastEl] = useToast();
+  const [tr, setTr] = useState(null); const [showTr, setShowTr] = useState(false); const [trBusy, setTrBusy] = useState(false); const [trErr, setTrErr] = useState('');
   // Opened by direct link: the feed may still be loading from the database — wait before deciding it's gone.
   if (!po && live && !(state.dataReady && state.feedReady)) return null;
   if (!po) { nav('/community', { replace: true }); return null; }
   const me = state.email ? state.email.split('@')[0] : (zh ? '我' : 'Me');
   const justPublished = loc.state?.published;
   const comment = () => { if (!draft.trim()) return; commentPost(po.id, me, draft.trim()).catch(() => nav('/login')); setDraft(''); };
-  const own = po.storyId && state.stories.some((s) => s.id === po.storyId);
+  const own = po.storyId && allStories.some((s) => s.id === po.storyId);
+  // Translation: Chinese stories → English, English stories → Chinese. Fetched once, then cached on the server.
+  const paras = po.marked?.length ? po.marked : (po.body || [po.excerpt]);
+  const to = /[\u3400-\u9fff]/.test(paras.join('') + po.title) ? 'en' : 'zh';
+  const toggleTr = async () => {
+    if (showTr) { setShowTr(false); return; }
+    if (tr) { setShowTr(true); return; }
+    setTrBusy(true); setTrErr('');
+    try { setTr(await translateStory(po.storyId || po.id, to)); setShowTr(true); }
+    catch { setTrErr(zh ? '暂时没能翻译，请稍后再试。' : 'Could not translate right now. Please try again.'); }
+    finally { setTrBusy(false); }
+  };
+  const view = showTr && tr ? { title: tr.title, paras: tr.paragraphs, terms: tr.terms } : { title: po.title, paras, terms: po.terms || [] };
 
   return (
     <Shell>
@@ -34,8 +49,14 @@ export default function Read() {
         <article className="max-w-[720px]">
           {po.image && <img src={po.image} alt="" className="block w-full aspect-[3/2] object-cover mb-8" />}
           <div className="ed-caps mb-3">{[po.place, po.era, LANGUAGES.find((l) => l.code === po.lang)?.label].filter(Boolean).join(' · ')}</div>
-          <h1 className="serif font-medium text-[38px] leading-[1.2] m-0 mb-6">{po.title}</h1>
-          <div className="story" style={{ maxWidth: 'none' }}>{(po.body || [po.excerpt]).map((pg, i) => <p key={i}>{pg}</p>)}</div>
+          <h1 className="serif font-medium text-[38px] leading-[1.2] m-0 mb-4">{view.title}</h1>
+          {live && <div className="flex flex-wrap items-center gap-4 text-[13.5px] mb-6">
+            <button className="link" disabled={trBusy} onClick={toggleTr}>{trBusy ? (zh ? '翻译中…' : 'Translating…') : showTr ? (zh ? '看原文' : 'Show original') : to === 'en' ? (zh ? '翻译成英文' : 'Translate to English') : (zh ? '翻译成中文' : 'Translate to Chinese')}</button>
+            {showTr && <span className="text-ink-3 text-[12.5px]">{zh ? 'AI 翻译，可能和原意有出入' : 'AI translation — may differ from the original'}</span>}
+            {trErr && <span className="text-rec text-[12.5px]">{trErr}</span>}
+          </div>}
+          <StoryText paragraphs={view.paras} terms={view.terms} mode="glossary" className="!max-w-none" />
+          {view.terms.length > 0 && <p className="text-[12.5px] text-ink-3 mt-1">{t('story.glossary')}</p>}
           <p className="text-[12.5px] text-ink-3 mt-6">{own ? (zh ? '这是你们家的故事。' : 'This is your family’s story.') : t('community.audioNote')}{own && <button className="link ml-2" onClick={() => nav('/story/' + po.storyId)}>{zh ? '打开带原声的版本' : 'Open with audio'} →</button>}</p>
 
           <section className="mt-12 border-t border-ink pt-5">
@@ -48,8 +69,8 @@ export default function Read() {
         <div className="aside-block">
           <div className="flex items-center gap-3 mb-3"><Avatar name={po.author} src={po.avatar} size="w-12 h-12 text-[16px]" me={po.mine} /><div className="min-w-0"><button className="font-medium hover:underline underline-offset-4 cursor-pointer text-left" onClick={() => nav('/people/' + encodeURIComponent(po.author))}>{po.author}</button><div className="text-[12.5px] text-ink-3 truncate">{po.authorSub}</div></div></div>
           {po.mine
-            ? <div className="grid gap-2 text-[14px]"><button className="link-soft w-fit" onClick={() => nav('/story/' + po.storyId)}>{zh ? '打开我们家的版本' : 'Open our version'}</button><button className="link-soft w-fit" onClick={() => { const st = state.stories.find((s) => s.id === po.storyId); if (st) { publish(st, false); nav('/story/' + st.id); } }}>{t('story.unpublish')}</button></div>
-            : <div className="grid gap-2 text-[14px]"><button className={(follow ? 'link' : 'link-soft') + ' w-fit'} onClick={() => setFollow((v) => !v)}>{follow ? t('community.following') : '+ ' + t('community.follow')}</button><button className="link-soft w-fit" onClick={() => nav('/people/' + encodeURIComponent(po.author))}>{zh ? `${po.author}的其他故事` : `More from ${po.author}`} →</button></div>}
+            ? <div className="grid gap-2 text-[14px]"><button className="link-soft w-fit" onClick={() => nav('/story/' + po.storyId)}>{zh ? '打开我们家的版本' : 'Open our version'}</button><button className="link-soft w-fit" onClick={() => { const st = allStories.find((s) => s.id === po.storyId); if (st) { publish(st, false); nav('/story/' + st.id); } }}>{t('story.unpublish')}</button></div>
+            : <div className="grid gap-2 text-[14px]"><button className="link-soft w-fit" onClick={() => nav('/people/' + encodeURIComponent(po.author))}>{zh ? `${po.author}的其他故事` : `More from ${po.author}`} →</button></div>}
         </div>
       )} />
     </Shell>

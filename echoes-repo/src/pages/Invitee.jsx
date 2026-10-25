@@ -13,7 +13,7 @@ import { storyView, profileView } from '../lib/loc';
 // Mobile-first — this is the page most likely to be opened inside WeChat.
 
 const useInviteData = () => {
-  const { state } = useStore(); const { lang } = useT();
+  const { state, allStories } = useStore(); const { lang } = useT();
   const p = profileView(state.profile || DEFAULT_PROFILE, lang);
   const stories = (state.stories.length ? state.stories : SEED_STORIES).map((s) => storyView(s, lang));
   return { host: p.mode === 'self' ? p.name : (p.relation ? `${p.name}的${p.relation}` : '邵先生'), p, stories };
@@ -21,7 +21,7 @@ const useInviteData = () => {
 
 export function InviteLanding() {
   const { lang } = useT(); const zh = lang === 'zh'; const nav = useNavigate(); const { code } = useParams();
-  const { live, state, previewInvite, joinFamily } = useStore(); const auth = useAuth();
+  const { live, state, previewInvite, joinFamily, allStories } = useStore(); const auth = useAuth();
   const demo = useInviteData();
   const [preview, setPreview] = useState(undefined); // undefined = loading, null = bad code
   const [busy, setBusy] = useState(false); const [err, setErr] = useState('');
@@ -102,10 +102,10 @@ export function SharedList() {
 }
 
 export function SharedStory() {
-  const { lang } = useT(); const zh = lang === 'zh'; const nav = useNavigate(); const { id } = useParams(); const { stories } = useInviteData(); const { updateStory, state } = useStore();
+  const { lang } = useT(); const zh = lang === 'zh'; const nav = useNavigate(); const { id } = useParams(); const { stories } = useInviteData(); const { updateStory, state, allStories } = useStore();
   const s0 = stories.find((x) => x.id === id) || stories[0];
   const [local, setLocal] = useState(s0.terms); const [fixing, setFixing] = useState(null); const [thanks, setThanks] = useState(false);
-  const setTerm = (tid, patch) => { const terms = local.map((t) => (t.id === tid ? { ...t, ...patch } : t)); setLocal(terms); if (state.stories.some((x) => x.id === s0.id)) updateStory(s0.id, { terms }); setThanks(true); setTimeout(() => setThanks(false), 1800); };
+  const setTerm = (tid, patch) => { const terms = local.map((t) => (t.id === tid ? { ...t, ...patch } : t)); setLocal(terms); if (allStories.some((x) => x.id === s0.id)) updateStory(s0.id, { terms }); setThanks(true); setTimeout(() => setThanks(false), 1800); };
   return (
     <ReaderShell>
       <button className="ed-caps hover:!text-ink cursor-pointer mb-6" onClick={() => nav('/shared')}>← {zh ? '全部故事' : 'All stories'}</button>

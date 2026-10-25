@@ -4,6 +4,7 @@ import Shell, { Narrow, Note } from '../components/Shell';
 import { useT, LANGUAGES, DIALECTS } from '../lib/i18n';
 import { useStore } from '../lib/store';
 import { DEFAULT_PROFILE } from '../mock/data';
+import { stripEn } from '../lib/loc';
 
 export function Mode() {
   const { t, lang } = useT(); const zh = lang === 'zh'; const nav = useNavigate(); const adding = useLocation().search.includes('add=');
@@ -29,10 +30,13 @@ export function Mode() {
 }
 
 export function Profile() {
-  const { t, lang } = useT(); const nav = useNavigate(); const { setProfile, state, updateStoryteller } = useStore();
+  const { t, lang } = useT(); const nav = useNavigate(); const { setProfile, state, updateStoryteller, live } = useStore();
   const loc = useLocation(); const qs = new URLSearchParams(loc.search); const mode = qs.get('mode') || 'other'; const editId = qs.get('edit');
   const existing = editId ? state.storytellers.find((s) => s.id === editId) : null;
-  const [f, setF] = useState(existing ? { ...existing, places: existing.places?.length ? existing.places : [''] } : { ...DEFAULT_PROFILE, mode, name: '', relation: '', birth: '', hometown: '', livesIn: '', places: [''], dialects: [] });
+  // A new storyteller starts empty (never from the sample — its English twins would leak into real data).
+  // Recording yourself: your own account name is filled in.
+  const blank = { mode, name: mode === 'self' ? (state.userName || '') : '', relation: '', birth: '', hometown: '', livesIn: '', country: '', places: [''], lang, dialects: [] };
+  const [f, setF] = useState(existing ? { ...stripEn(existing), places: existing.places?.length ? existing.places : [''] } : blank);
   const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
   const setPlace = (i, v) => setF((s) => ({ ...s, places: s.places.map((p, k) => (k === i ? v : p)) }));
   const self = mode === 'self';
@@ -53,7 +57,7 @@ export function Profile() {
         {existing ? <button className="ed-caps hover:!text-ink cursor-pointer mb-6 block" onClick={() => nav(-1)}>{t('nav.back')}</button> : <button className="ed-caps hover:!text-ink cursor-pointer mb-6 block" onClick={() => nav('/mode')}>{t('nav.back')}</button>}
         <div className="ed-caps mb-3">{existing ? t('profile.editTitle') : t('profile.step2')}</div>
         <h1 className="serif font-medium text-[34px] leading-[1.25] m-0 mb-3">{existing ? existing.name : self ? t('profile.titleSelf') : t('profile.titleOther')}</h1>
-        <p className="text-ink-2 mb-7">{t('profile.sub')} <button className="link-soft text-[13px]" onClick={fill}>{t('profile.fill')}</button></p>
+        <p className="text-ink-2 mb-7">{t('profile.sub')} {!live && <button className="link-soft text-[13px]" onClick={fill}>{t('profile.fill')}</button>}</p>
 
         <div className="grid grid-cols-2 gap-4">
           <div><label className="label">{self ? t('profile.nameSelf') : t('profile.nameOther')}</label><input className="input" value={f.name} onChange={(e) => set('name', e.target.value)} placeholder={self ? t('profile.ph.nameSelf') : t('profile.ph.nameOther')} /></div>
@@ -94,7 +98,7 @@ export function Profile() {
 
         <div className="flex items-center gap-7 mt-10">
           <button className="btn btn-primary btn-lg" disabled={!canDone || busy} onClick={() => save({ ...f, places: f.places.filter(Boolean) })}>{busy ? (lang === 'zh' ? '保存中…' : 'Saving…') : existing ? t('profile.save') : t('profile.done')}</button>
-          {!existing && <button className="link-soft text-[14px]" disabled={busy} onClick={() => save({ ...DEFAULT_PROFILE, mode })}>{t('profile.skip')}</button>}
+          {!existing && <button className="link-soft text-[14px]" disabled={busy} onClick={() => save(live ? { ...blank, places: [], name: f.name.trim() || (mode === 'self' ? (state.userName || (lang === 'zh' ? '我' : 'Me')) : (lang === 'zh' ? '长辈' : 'Grandparent')) } : { ...DEFAULT_PROFILE, mode })}>{t('profile.skip')}</button>}
           {existing && <button className="link-soft text-[14px]" onClick={() => nav(-1)}>{t('common.cancel')}</button>}
         </div>
         {err && <p className="text-rec text-[13.5px] mt-3">{err}</p>}

@@ -32,10 +32,13 @@ export default function Pick() {
   const chapters = [{ id: 'own', label: zh ? '我们家的问题' : 'Our own questions', n: mine.length }, ...CHAPTERS.map((c) => ({ id: c.id, label: zh ? c.label : c.labelEn, n: QUESTIONS.filter((q) => q.cat === c.id).length }))];
 
   const Row = ({ q, text, meta }) => (
-    <button className="w-full text-left py-5 cursor-pointer group grid gap-1" onClick={() => openSheet(q, text)}>
-      <span className="q-text group-hover:underline underline-offset-[6px] decoration-1">{text}</span>
-      {meta && <span className="text-[12.5px] text-ink-3">{meta}</span>}
-    </button>
+    <div className="flex items-start gap-4">
+      <button className="flex-1 min-w-0 text-left py-5 cursor-pointer group grid gap-1" onClick={() => openSheet(q, text)}>
+        <span className="q-text group-hover:underline underline-offset-[6px] decoration-1">{text}</span>
+        {meta && <span className="text-[12.5px] text-ink-3">{meta}</span>}
+      </button>
+      {Boolean(q.source) && <button className="link-soft text-[13px] pt-6 whitespace-nowrap" aria-label={zh ? '删除这个问题' : 'Remove this question'} onClick={() => { if (window.confirm(zh ? `删除这个问题？\n「${text}」` : `Remove this question?\n“${text}”`)) removeQuestion(q.id); }}>{zh ? '删除' : 'Remove'}</button>}
+    </div>
   );
 
   return (

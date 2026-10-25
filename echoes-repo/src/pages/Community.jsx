@@ -9,7 +9,7 @@ import { postView } from '../lib/loc';
 // Social is one gesture (like); the chrome gets out of the way. Audio never leaves the family.
 
 export default function Community() {
-  const { t, lang } = useT(); const zh = lang === 'zh'; const nav = useNavigate(); const { state, updatePost, likePost, commentPost, loadComments, live } = useStore();
+  const { t, lang } = useT(); const zh = lang === 'zh'; const nav = useNavigate(); const { state, updatePost, likePost, commentPost, loadComments, live, allStories } = useStore();
   const [filter, setFilter] = useState('all'); const [topic, setTopic] = useState(null); const [open, setOpen] = useState(null); const [draft, setDraft] = useState(''); const [follow, setFollow] = useState({}); const [mineOnly, setMineOnly] = useState(false);
   const allPosts = state.posts.map((p) => postView(p, lang));
   const langs = ['all', ...new Set(allPosts.map((p) => p.lang))];
@@ -19,13 +19,13 @@ export default function Community() {
   const featured = posts.find((p) => p.featured) || posts[0];
   const rest = posts.filter((p) => p !== featured);
   const me = state.email ? state.email.split('@')[0] : (zh ? '我' : 'Me');
-  const openPost = (po) => (po.storyId && state.stories.some((s) => s.id === po.storyId) ? nav('/story/' + po.storyId) : nav('/read/' + po.id));
+  const openPost = (po) => (po.storyId && allStories.some((s) => s.id === po.storyId) ? nav('/story/' + po.storyId) : nav('/read/' + po.id));
 
   const Actions = ({ po }) => (
     <div className="flex items-center gap-6 text-[13.5px] text-ink-2 mt-4">
       <button className={'cursor-pointer hover:text-ink ' + (po.liked ? 'text-rec' : '')} onClick={() => likePost(po.id, !po.liked).catch(() => nav('/login'))}>{po.liked ? '♥' : '♡'} {po.likes}</button>
       <span className="flex-1" />
-      <button className="link text-[13px]" onClick={() => openPost(po)}>{po.storyId && state.stories.some((s) => s.id === po.storyId) ? t('community.readListen') : t('community.read')} →</button>
+      <button className="link text-[13px]" onClick={() => openPost(po)}>{po.storyId && allStories.some((s) => s.id === po.storyId) ? t('community.readListen') : t('community.read')} →</button>
     </div>
   );
   const Comments = () => null;   // comments and reposts removed: the community keeps one gesture — a like.
@@ -34,7 +34,7 @@ export default function Community() {
       <Avatar name={po.author} src={po.avatar} me={po.mine} />
       <button className="font-medium hover:underline underline-offset-4 cursor-pointer" onClick={() => nav('/people/' + encodeURIComponent(po.author))}>{po.author}</button>
       <span className="text-ink-3 truncate">{po.authorSub}</span>
-      {po.mine ? <span className="ed-caps !text-accent">{t('community.mine')}</span> : <button className="link-soft text-[12.5px] ml-1" onClick={() => setFollow((f) => ({ ...f, [po.author]: !f[po.author] }))}>{follow[po.author] ? t('community.following') : '+ ' + t('community.follow')}</button>}
+      {po.mine && <span className="ed-caps !text-accent">{t('community.mine')}</span>}
     </div>
   );
   const Meta = ({ po }) => <div className="ed-caps mt-3">{[po.place, po.era, zh ? `${po.readMin} 分钟` : `${po.readMin} min`, LANGUAGES.find((l) => l.code === po.lang)?.label || po.lang].join(' · ')}</div>;
@@ -42,12 +42,12 @@ export default function Community() {
   return (
     <Shell>
       {/* 33-point list item: the page says what it is, in one line */}
-      <PageHeader title={t('community.title')} sub={zh ? '家人选择公开的故事会出现在这里。故事保留讲述者自己的语言，不翻译；原声只对家人开放。' : 'Stories families chose to share. Each stays in the storyteller’s own language; audio stays within the family.'} />
+      <PageHeader title={t('community.title')} sub={zh ? '家人选择公开的故事会出现在这里。每个故事都可以中英互译；原声只对家人开放。' : 'Stories families chose to share. Every story can be read in Chinese or English; audio stays within the family.'} />
       <TwoCol asideWidth={240} main={(
         <div>
           {featured && (
-            <article className="grid md:grid-cols-[1fr_1.1fr] gap-10 items-start pb-12 mb-4 border-b border-ink">
-              <div className="relative">{featured.image ? <img src={featured.image} alt="" className="block w-full aspect-[4/3] object-cover" /> : <div className="w-full aspect-[4/3] bg-line-2" />}<span className="absolute left-3 top-3 ed-caps !text-paper bg-ink/70 px-2 py-1">{featured.era}</span></div>
+            <article className={'grid gap-10 items-start pb-12 mb-4 border-b border-ink ' + (featured.image ? 'md:grid-cols-[1fr_1.1fr]' : 'md:grid-cols-[0.6fr_1.1fr]')}>
+              <div className="relative">{featured.image ? <><img src={featured.image} alt="" className="block w-full aspect-[4/3] object-cover" />{featured.era && <span className="absolute left-3 top-3 ed-caps !text-paper bg-ink/70 px-2 py-1">{featured.era}</span>}</> : <div className="w-full aspect-[4/3] border border-line flex items-center justify-center"><span className="serif text-[120px] leading-none text-ink-3/40 select-none">{(featured.title || '·').slice(0, 1)}</span></div>}</div>
               <div>
                 <div className="ed-caps !text-accent mb-4">{t('community.featured')}</div>
                 <h2 className="serif font-medium text-[36px] leading-[1.15] m-0 mb-4 cursor-pointer hover:underline underline-offset-4 decoration-1" onClick={() => openPost(featured)}>{featured.title}</h2>
@@ -60,14 +60,14 @@ export default function Community() {
           <div className="flex items-baseline justify-between mb-2"><h3 className="h2 m-0">{t('community.latest')}</h3><span className="ed-caps">{posts.length} {t('community.stories')}</span></div>
           <div className="divide-y divide-line border-b border-line">
             {rest.map((po) => (
-              <article key={po.id} className="py-8 grid md:grid-cols-[1fr_150px] gap-8 items-start">
+              <article key={po.id} className={'py-8 grid gap-8 items-start ' + (po.image ? 'md:grid-cols-[1fr_150px]' : '')}>
                 <div className="min-w-0">
                   <Byline po={po} />
                   <h3 className="serif font-medium text-[24px] leading-[1.3] mt-3 mb-2 cursor-pointer hover:underline underline-offset-4 decoration-1" onClick={() => openPost(po)}>{po.title}</h3>
                   <p className="story text-[15.5px] leading-[1.8] text-ink-2 m-0 line-clamp-2" style={{ maxWidth: 'none' }}>{po.excerpt}</p>
                   <Meta po={po} /><Actions po={po} /><Comments po={po} />
                 </div>
-                {po.image ? <img src={po.image} alt="" className="hidden md:block w-[150px] aspect-square object-cover cursor-pointer" onClick={() => openPost(po)} /> : <div className="hidden md:block w-[150px] aspect-square bg-line-2" />}
+                {po.image ? <img src={po.image} alt="" className="hidden md:block w-[150px] aspect-square object-cover cursor-pointer" onClick={() => openPost(po)} /> : null}
               </article>
             ))}
             {rest.length === 0 && !featured && <p className="text-ink-3 py-10 m-0">{t('community.noneFilter')}</p>}

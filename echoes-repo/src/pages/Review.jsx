@@ -6,6 +6,7 @@ import MediaPanel from '../components/MediaPanel';
 import { useT } from '../lib/i18n';
 import { useStore } from '../lib/store';
 import { polishParagraph } from '../mock/data';
+import { polishText } from '../lib/db';
 
 const split = (s) => s.split(/[,，、;；]/).map((x) => x.trim()).filter(Boolean);
 
@@ -13,8 +14,8 @@ const split = (s) => s.split(/[,，、;；]/).map((x) => x.trim()).filter(Boolea
 // Everything else (AI polish, raw transcript, media, metadata) is one click away, not on the page by default.
 export default function Review() {
   const { t, lang } = useT(); const zh = lang === 'zh'; const nav = useNavigate(); const { id } = useParams();
-  const { state, setDraft, saveStory, updateStory } = useStore();
-  const initial = id ? state.stories.find((s) => s.id === id) : state.draft;
+  const { state, setDraft, saveStory, updateStory, allStories, live } = useStore();
+  const initial = id ? allStories.find((s) => s.id === id) : state.draft;
   const [story, setStory] = useState(initial);
   const [editing, setEditing] = useState(false); const [active, setActive] = useState(null); const [showRaw, setShowRaw] = useState(false); const [more, setMore] = useState(false); const [showMedia, setShowMedia] = useState(false); const [meta, setMeta] = useState(false);
   const [polishing, setPolishing] = useState(false); const [history, setHistory] = useState([]); const [fixing, setFixing] = useState(null);
@@ -37,7 +38,19 @@ export default function Review() {
     update(next); persist(next);
     setNw({ word: '', kind: '', note: '' }); setAdding(false);
   };
-  const polishAll = async () => { setMore(false); setPolishing(true); setHistory((h) => [...h, story.text]); const out = []; for (const p of paras) out.push(await polishParagraph(p, 'narrative')); update({ text: { ...story.text, first: out } }); setPolishing(false); };
+  // Real AI polish (server checks nothing was added; [marked] words stay). Preview mode keeps the offline sample.
+  const polishAll = async () => {
+    setMore(false); setPolishing(true);
+    try {
+      let out, changed = true;
+      if (live) { const d = await polishText(paras, story.lang || lang); out = d.paragraphs; changed = d.changed; }
+      else { out = []; for (const p of paras) out.push(await polishParagraph(p, 'narrative')); }
+      if (!changed) { toast(zh ? '已经很通顺了，没有改动。' : 'Already reads well — nothing changed.'); return; }
+      setHistory((h) => [...h, story.text]); update({ text: { ...story.text, first: out } });
+      toast(zh ? '润色好了。不满意可以点「撤销润色」。' : 'Polished. Use “Undo polish” to go back.');
+    } catch (e) { toast((zh ? '润色没成功：' : 'Polish failed: ') + (e?.message || '')); }
+    finally { setPolishing(false); }
+  };
   const undo = () => { if (!history.length) return; update({ text: history[history.length - 1] }); setHistory((h) => h.slice(0, -1)); };
   const [saving, setSaving] = useState(false); const [saveErr, setSaveErr] = useState('');
   // Save goes to the database; a new story comes back with the id the database assigned.
@@ -111,7 +124,7 @@ export default function Review() {
         </div>
       )} />
       <div className="sticky bottom-0 mt-12 bg-paper/92 backdrop-blur border-t border-ink py-4 flex items-center gap-6">
-        <span className="text-[13.5px] text-ink-2">{pendingN > 0 ? (zh ? `${pendingN} 处注释还没确认，也可以先保存。` : `${pendingN} note(s) still pending — you can save anyway.`) : (zh ? '所有注释已确认。' : 'All notes confirmed.')}</span><span className="flex-1" />
+        <span className="text-[13.5px] text-ink-2">{pendingN > 0 ? (zh ? `${pendingN} 处注释还没确认，也可以先保存。` : `${pendingN} ${pendingN === 1 ? 'note' : 'notes'} still pending — you can save anyway.`) : (zh ? '所有注释已确认。' : 'All notes confirmed.')}</span><span className="flex-1" />
         {!id && <button className="link-soft text-[14px]" onClick={saveDraft}>{t('review.draft')}</button>}
         {saveErr && <span className="text-rec text-[13px]">{saveErr}</span>}
         <button className="btn btn-primary" disabled={saving} onClick={save}>{saving ? (zh ? '保存中…' : 'Saving…') : id ? t('review.saveChanges') : t('review.save')}</button>

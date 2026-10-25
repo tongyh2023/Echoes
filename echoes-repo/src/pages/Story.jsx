@@ -12,8 +12,10 @@ const EMOJI = ['❤️', '😂', '😢', '👏'];
 // The saved story, read like a page of a book. The family reacts underneath and asks the next question — which becomes the next thing to record.
 export default function Story() {
   const { t, lang } = useT(); const zh = lang === 'zh'; const nav = useNavigate(); const { id } = useParams();
-  const { state, publish, updateStory, react, addQuestion, live } = useStore();
-  const raw = state.stories.find((s) => s.id === id); const story = storyView(raw, lang); const p = profileView(state.profile, lang);
+  const { state, publish, updateStory, react, addQuestion, live, allStories } = useStore();
+  const raw = allStories.find((s) => s.id === id); const story = storyView(raw, lang);
+  // The storyteller of THIS story (not whoever is selected at the moment).
+  const p = profileView(state.storytellers.find((x) => x.id === raw?.storytellerId) || state.profile || {}, lang);
   const [consent, setConsent] = useState(false); const [agree, setAgree] = useState(false); const [share, setShare] = useState(false); const [ask, setAsk] = useState('');
   const [toast, toastEl] = useToast();
   if (!story) { nav('/home'); return null; }
@@ -35,8 +37,20 @@ export default function Story() {
           <p className="text-[14.5px] text-ink-2 mb-7">{p.name}{story.people?.length ? ' · ' + story.people.join('、') : ''}{story.topics?.length ? ' · ' + story.topics.join('、') : ''}</p>
           <div className="mb-8"><Audio dur={story.duration} src={story.audioUrl} path={story.audioPath} /></div>
           <StoryText paragraphs={story.text.first} terms={story.terms} mode="glossary" />
-          {story.terms.some((x) => x.status === 'ok') && <p className="text-[12.5px] text-ink-3 mt-1">{t('story.glossary')}</p>}
-          {pending > 0 && <p className="mt-5 text-[13.5px] text-ink-2 border-l-2 border-accent pl-4">{zh ? `${pending} 处注释还没确认，确认后才会显示给读者。` : `${pending} note(s) pending — they show to readers once confirmed.`} <button className="link ml-2" onClick={() => nav('/story/' + story.id + '/edit')}>{zh ? '去确认' : 'Review'} →</button></p>}
+          {story.terms.length > 0 && (
+            <section className="mt-8 border-t border-line pt-4">
+              <div className="ed-caps mb-3">{zh ? '注释' : 'Notes'}</div>
+              <dl className="grid gap-3 m-0">
+                {story.terms.map((tm) => (
+                  <div key={tm.id} className="grid grid-cols-[minmax(80px,auto)_1fr] gap-x-4 text-[14.5px]">
+                    <dt className="serif font-medium">{tm.word}</dt>
+                    <dd className="m-0 text-ink-2">{tm.note}{tm.kind && <span className="ed-caps ml-2">{tm.kind}</span>}{tm.status !== 'ok' && <span className="ed-caps !text-accent ml-2">{zh ? '待确认' : 'Pending'}</span>}</dd>
+                  </div>
+                ))}
+              </dl>
+              {pending > 0 && <p className="mt-4 text-[13.5px] text-ink-2 border-l-2 border-accent pl-4 mb-0">{zh ? `${pending} 处注释还没确认。确认后才会在社区里显示给其他家庭。` : `${pending} ${pending === 1 ? 'note is' : 'notes are'} not confirmed yet. Other families only see confirmed notes.`} <button className="link ml-2" onClick={() => nav('/story/' + story.id + '/edit')}>{zh ? '去确认' : 'Review'} →</button></p>}
+            </section>
+          )}
           <div className="mt-10"><MediaPanel media={story.media || []} onChange={(m) => updateStory(story.id, { media: m })} autosave /></div>
 
           {/* family */}
@@ -50,7 +64,7 @@ export default function Story() {
             <div className="divide-y divide-line border-b border-line mb-3">
               {followups.map((q) => <div key={q.id} className="py-3 flex items-baseline gap-4"><span className="q-text flex-1 !text-[17px]">{q.text}</span><span className="text-[12.5px] text-ink-3 whitespace-nowrap">{q.who}</span><button className="link text-[13px] whitespace-nowrap" onClick={() => nav('/record/own?text=' + encodeURIComponent(q.text) + '&cq=' + q.id)}>{zh ? '去录' : 'Record'} →</button></div>)}
             </div>
-            <div className="flex gap-4 items-end"><input className="field flex-1 text-[16px]" placeholder={zh ? `比如：外婆的木甑后来去哪了？` : 'e.g. What happened to grandma’s wooden steamer?'} value={ask} onChange={(e) => setAsk(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && askIt()} /><button className="btn btn-sm" disabled={!ask.trim()} onClick={askIt}>{zh ? '问他' : 'Ask'}</button></div>
+            <div className="flex gap-4 items-end"><input className="field flex-1 text-[16px]" placeholder={zh ? `比如：外婆的木甑后来去哪了？` : 'e.g. What happened to grandma’s wooden steamer?'} value={ask} onChange={(e) => setAsk(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && askIt()} /><button className="btn btn-sm" disabled={!ask.trim()} onClick={askIt}>{zh ? '问一问' : 'Ask'}</button></div>
             <p className="text-[12.5px] text-ink-3 mt-2 mb-0">{zh ? '追问会排在下一个要录的问题里。' : 'Follow-ups become the next question to record.'}</p>
           </section>
         </article>

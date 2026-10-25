@@ -8,4 +8,6 @@ export const storyView = (s, lang) => (!s || lang !== 'en' || !s.textEn) ? s : {
 export const postView = (p, lang) => (!p || lang !== 'en') ? p : { ...p, title: p.titleEn || p.title, excerpt: p.excerptEn || p.excerpt, body: p.bodyEn || p.body, author: p.authorEn || p.author, authorSub: p.authorSubEn || p.authorSub, place: p.placeEn || p.place, topics: p.topicsEn || p.topics };
 export const profileView = (p, lang) => (!p || lang !== 'en') ? p : { ...p, name: p.nameEn || p.name, relation: p.relationEn || p.relation, hometown: p.hometownEn || p.hometown, livesIn: p.livesInEn || p.livesIn, places: p.placesEn || p.places };
 export const qView = (q, lang) => (!q || lang !== 'en') ? q : { ...q, text: q.textEn || q.text, tags: q.tagsEn || q.tags };
+// Real storytellers must never carry the sample's English twins (nameEn: 'Grandpa Tong' …) — those are only for demo content.
+export const stripEn = (p) => (p && !p.demo ? Object.fromEntries(Object.entries(p).filter(([k]) => !/En$/.test(k))) : p);
 export const catLabel = (c, lang) => pick(c, 'label', lang);

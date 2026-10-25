@@ -15,19 +15,21 @@ function Frame({ title, sub, children }) {
 export function SignUp() {
   const { t, lang } = useT(); const zh = lang === 'zh'; const nav = useNavigate(); const auth = useAuth(); const { seedDemo, joinFamily, live } = useStore();
   const [pendingCode, setPendingCode] = useState('');
-  const [email, setEmail] = useState(''); const [pw, setPw] = useState(''); const [err, setErr] = useState(''); const [busy, setBusy] = useState(false);
+  const [name, setName] = useState(''); const [email, setEmail] = useState(''); const [pw, setPw] = useState(''); const [err, setErr] = useState(''); const [busy, setBusy] = useState(false);
   const [joining, setJoining] = useState(false); const [code, setCode] = useState(''); const [codeErr, setCodeErr] = useState('');
   const go = async () => {
+    if (!name.trim()) return setErr(zh ? '写一下你的名字，家人会看到它。' : 'Add your name — your family will see it.');
     if (!/^\S+@\S+\.\S+$/.test(email)) return setErr(zh ? '邮箱格式不对，再看一眼？' : 'That email doesn’t look right.');
     if (pw.length < 8) return setErr(zh ? '密码至少 8 位。' : 'Password needs at least 8 characters.');
     setErr(''); setBusy(true);
     try {
-      const { needsEmailConfirm } = await auth.signUp(email, pw);
+      const { needsEmailConfirm } = await auth.signUp(email, pw, name.trim());
       nav(needsEmailConfirm ? '/verify' : '/mode', { state: { email } });
     } catch (e) { setErr(friendlyError(e, zh)); } finally { setBusy(false); }
   };
   return (
     <Frame title={t('auth.title')} sub={t('auth.sub')}>
+      <label className="label">{zh ? '你的名字（家人会看到）' : 'Your name (family will see it)'}</label><input id="su-name" className="input mb-4" autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} placeholder={zh ? '例如：小童' : 'e.g. Helen Tong'} />
       <label className="label">{t('auth.email')}</label><input id="su-email" className="input mb-4" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" />
       <label className="label">{t('auth.pw')}</label><input id="su-pw" className="input mb-2" type="password" autoComplete="new-password" value={pw} onChange={(e) => setPw(e.target.value)} placeholder={t('auth.pwHint')} onKeyDown={(e) => e.key === 'Enter' && go()} />
       {err && <p className="text-rec text-[13.5px] mb-3">{err}</p>}
@@ -44,11 +46,9 @@ export function SignUp() {
           {pendingCode && <p className="text-[13px] text-ink-2 mt-2 mb-0">✓ {zh ? `记住了 ${pendingCode}。创建账号后会自动加入这个家。` : `Got it — ${pendingCode}. You’ll join this family as soon as your account is created.`}</p>}
         </>) : <button className="link-soft text-[14px]" onClick={() => setJoining(true)}>{t('family.join')} →</button>}
       </div>
-      <div className="divider my-8">{zh ? '演示' : 'Demo'}</div>
-      {live
-        ? <p className="text-[12.5px] text-ink-3">{zh ? '想先看看效果？创建账号后，在「设置」里可以一键导入童爷爷的 3 个示例故事，随时删除。' : 'Want to see it filled in? After creating an account, import Grandpa Tong’s 3 sample stories from Settings — removable any time.'}</p>
-        : <><button className="btn w-full" onClick={() => { seedDemo(); nav('/home'); }}>{zh ? '用示例数据直接进入（童爷爷 · 3 个故事）' : 'Enter with sample data (Grandpa Tong · 3 stories)'}</button>
-          <p className="text-[12.5px] text-ink-3 mt-3">{zh ? '给审核用的快捷入口；正式版本没有这个按钮。' : 'Reviewer shortcut; not in the real product.'}</p></>}
+      {!live && <><div className="divider my-8">{zh ? '演示' : 'Demo'}</div>
+        <><button className="btn w-full" onClick={() => { seedDemo(); nav('/home'); }}>{zh ? '用示例数据直接进入（童爷爷 · 3 个故事）' : 'Enter with sample data (Grandpa Tong · 3 stories)'}</button>
+          <p className="text-[12.5px] text-ink-3 mt-3">{zh ? '给审核用的快捷入口；正式版本没有这个按钮。' : 'Reviewer shortcut; not in the real product.'}</p></></>}
     </Frame>
   );
 }
