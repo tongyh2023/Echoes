@@ -48,7 +48,11 @@ export function Profile() {
   const save = async (v, back) => {
     setErr(''); setBusy(true);
     try { if (existing) { await updateStoryteller(existing.id, v); nav(-1); } else { await setProfile(v); nav(back || '/home'); } }
-    catch (e) { setErr((lang === 'zh' ? '没保存上：' : 'Couldn’t save: ') + (e?.message || '')); }
+    catch (e) {
+      // The account behind this browser's sign-in no longer exists (e.g. deleted test account) → ask to sign in again.
+      if (/created_by_fkey|user_not_found|JWT/i.test(e?.message || '')) setErr(lang === 'zh' ? '登录状态已经失效了。请点右上角退出，再重新登录或注册。' : 'Your sign-in has expired. Please log out and sign in or sign up again.');
+      else setErr((lang === 'zh' ? '没保存上：' : 'Couldn’t save: ') + (e?.message || ''));
+    }
     finally { setBusy(false); }
   };
   return (

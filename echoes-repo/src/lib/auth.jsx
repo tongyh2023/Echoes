@@ -36,7 +36,17 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     if (!hasSupabase) return;
     let alive = true;
-    supabase.auth.getSession().then(({ data }) => { if (alive) { setUser(data.session?.user || null); setReady(true); } });
+    // getSession() only reads the token saved in this browser. If that account has since been deleted
+    // (e.g. test accounts removed before launch), the token is a ghost: ask the server once and drop it.
+    supabase.auth.getSession().then(async ({ data }) => {
+      let u = data.session?.user || null;
+      if (u) {
+        const { data: check, error } = await supabase.auth.getUser();
+        if (error && (error.status === 401 || error.status === 403 || /not exist|not found|invalid/i.test(error.message || ''))) { await supabase.auth.signOut({ scope: 'local' }).catch(() => {}); u = null; }
+        else if (check?.user) u = check.user;
+      }
+      if (alive) { setUser(u); setReady(true); }
+    });
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => { if (alive) setUser(session?.user || null); });
     return () => { alive = false; sub.subscription.unsubscribe(); };
   }, []);
@@ -57,6 +67,8 @@ export function AuthProvider({ children }) {
     signUp: async (email, password, name) => {
       if (!hasSupabase) { store.signIn(email); return { needsEmailConfirm: false }; }
       let invite = null; try { invite = sessionStorage.getItem('echoes-pending-invite'); } catch {}
+      // A new account starts clean: forget any session left in this browser from another account.
+      await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
       const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { name: name || email.split('@')[0], ...(invite ? { invite } : {}) }, emailRedirectTo: window.location.origin + '/login' } });
       if (error) throw error;
       return { needsEmailConfirm: !data.session };
