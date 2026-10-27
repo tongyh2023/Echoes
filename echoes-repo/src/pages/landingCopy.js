@@ -24,7 +24,7 @@ export const C = {
     founderEyebrow: '为什么做这个', founderT: '为了一个声音。',
     founder: '爷爷讲过很多遍那年冬天的事。我们都听过，却没有一个人能完整地讲出来。他的口音、他用的那些老词，只在他开口的时候才是活的。余音想做的事很小：趁还来得及，把这样的声音留下来——连同那些词、那个年代，一起交给下一代。',
     priceEyebrow: '价格', priceT: '先录十个故事，再决定。', free: '免费', freeSub: '前 10 个故事', freeList: ['问题库和录音', 'AI 整理和注释', '照片和视频', '一位讲述者', '邀请 1 位家人'],
-    pro: '家庭版', rec: '推荐', month: '月付', year: '终身', proPriceM: '$4.99', proPriceY: '$19.99', per: ['/ 月', '一次付清'], save: '一次付清，永久使用', proList: ['不限故事数量', '多位讲述者（外婆也建一个）', '不限家人数量'], proCta: '先免费开始',
+    pro: '家庭版', rec: '推荐', month: '月付', year: '终身', proPriceM: '$2.99', proPriceY: '$9.99', per: ['/ 月', '一次付清'], save: '一次付清，永久使用', proList: ['不限故事数量', '多位讲述者（外婆也建一个）', '不限家人数量'], proCta: '先免费开始',
     note: '价格以美元计。月付每月自动续费，可以随时在设置里取消；终身版一次付清，不再扣费。停止付费后，已有的故事和录音永远可以读——不会被锁住。如需退款，请发邮件到 hello@echoestory.com。',
     faqEyebrow: '常见问题', faqT: '你可能想问',
     faq: [
@@ -63,7 +63,7 @@ export const C = {
     founderEyebrow: 'Why we built this', founderT: 'For one voice.',
     founder: 'Grandpa told the story of that winter many times. We had all heard it, and not one of us could retell it. His accent, the old words he used — they were only alive while he was speaking. Echoes sets out to do something small: while there is still time, keep a voice like his, with its words and its era, and hand it on.',
     priceEyebrow: 'Pricing', priceT: 'Record ten stories. Then decide.', free: 'Free', freeSub: 'First 10 stories', freeList: ['Question bank & recording', 'AI tidy & annotations', 'Photos & video', 'One storyteller', 'Invite 1 family member'],
-    pro: 'Family', rec: 'Recommended', month: 'Monthly', year: 'Lifetime', proPriceM: '$4.99', proPriceY: '$19.99', per: ['/ mo', 'once'], save: 'Pay once, keep it forever', proList: ['Unlimited stories', 'Multiple storytellers', 'Unlimited family'], proCta: 'Start free first',
+    pro: 'Family', rec: 'Recommended', month: 'Monthly', year: 'Lifetime', proPriceM: '$2.99', proPriceY: '$9.99', per: ['/ mo', 'once'], save: 'Pay once, keep it forever', proList: ['Unlimited stories', 'Multiple storytellers', 'Unlimited family'], proCta: 'Start free first',
     note: 'Prices in US dollars. Monthly renews automatically each month — cancel any time in Settings. Lifetime is paid once and never charged again. If you stop paying, every existing story and recording stays readable — never locked. For a refund, email hello@echoestory.com.',
     faqEyebrow: 'FAQ', faqT: 'Things people ask',
     faq: [

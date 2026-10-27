@@ -2,8 +2,8 @@
 // Environment variables (Vercel → Settings → Environment Variables):
 //   BILLING_MODE            'stripe' to take payments, anything else (or unset) = waitlist
 //   STRIPE_SECRET_KEY       sk_test_… / sk_live_…      (secret)
-//   STRIPE_PRICE_ID         price_…                     (Family plan, monthly — recurring US$4.99/month)
-//   STRIPE_PRICE_ID_LIFETIME price_…                    (Family plan, lifetime — one-time US$19.99; optional)
+//   STRIPE_PRICE_ID         price_…                     (Family plan, monthly — recurring US$2.99/month)
+//   STRIPE_PRICE_ID_LIFETIME price_…                    (Family plan, lifetime — one-time US$9.99; optional)
 //   STRIPE_WEBHOOK_SECRET   whsec_…                     (secret)
 //   SUPABASE_SECRET_KEY     sb_secret_… (or the legacy service_role key) — only the webhook uses it (secret)
 //   VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY          already set for the site
