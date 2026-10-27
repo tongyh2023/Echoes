@@ -43,9 +43,10 @@ export default function Record() {
   const start = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // iPhone/Safari records MP4 (AAC), Chrome records WebM — keep the real type so the file is stored and played correctly.
       const mr = new MediaRecorder(stream); chunks.current = [];
       mr.ondataavailable = (e) => chunks.current.push(e.data);
-      mr.onstop = () => { const blob = new Blob(chunks.current, { type: 'audio/webm' }); setTakes((ts) => [...ts, { blob, url: URL.createObjectURL(blob), sec: secRef.current }]); stream.getTracks().forEach((tr) => tr.stop()); };
+      mr.onstop = () => { const blob = new Blob(chunks.current, { type: (mr.mimeType || chunks.current[0]?.type || 'audio/webm').split(';')[0] }); setTakes((ts) => [...ts, { blob, url: URL.createObjectURL(blob), sec: secRef.current }]); stream.getTracks().forEach((tr) => tr.stop()); };
       rec.current = mr; mr.start(); setDemo(false); setStatus('recording'); setSec(0); secRef.current = 0;
       timer.current = setInterval(() => setSec((s) => { secRef.current = s + 1; if (s + 1 >= MAX_SEC) setTimeout(() => stopRef.current?.(), 0); return s + 1; }), 1000);
     } catch { setNoMic(true); }

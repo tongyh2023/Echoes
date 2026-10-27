@@ -154,7 +154,10 @@ export function Audio({ label, dur = '0:00', src: srcProp, path }) {
   const [playing, setPlaying] = useState(false); const [prog, setProg] = useState(0); const [cur, setCur] = useState(0);
   const [signed, setSigned] = useState(null); const [loading, setLoading] = useState(false); const [failed, setFailed] = useState(false);
   const src = srcProp || signed; const canPlay = Boolean(srcProp || path);
-  useEffect(() => { setSigned(null); setFailed(false); }, [path]);
+  // Fetch the private link as soon as the player appears. Phones (iPhone especially) only allow play()
+  // directly inside the tap — if we waited for the network after the tap, the phone would block playback.
+  useEffect(() => { setSigned(null); setFailed(false); if (srcProp || !path) return; let alive = true;
+    getAudioUrl(path).then((u) => { if (alive) setSigned(u); }).catch(() => {}); return () => { alive = false; }; }, [path]); // eslint-disable-line react-hooks/exhaustive-deps
   const resolve = async () => {
     if (src || !path) return src;
     setLoading(true);
@@ -164,16 +167,17 @@ export function Audio({ label, dur = '0:00', src: srcProp, path }) {
   useEffect(() => { const a = ref.current; if (!a) return; const onT = () => { setCur(a.currentTime); setProg(a.duration ? a.currentTime / a.duration : 0); }; const onE = () => { setPlaying(false); setProg(0); setCur(0); }; a.addEventListener('timeupdate', onT); a.addEventListener('ended', onE); return () => { a.removeEventListener('timeupdate', onT); a.removeEventListener('ended', onE); }; }, [src]);
   const toggle = async () => {
     if (!canPlay || loading) return;
-    const url = await resolve(); if (!url) return;
-    // the <audio> element mounts once a URL exists; give React one tick to render it
-    await new Promise((r) => setTimeout(r, 0));
-    const a = ref.current; if (!a) return;
+    let a = ref.current;
+    if (!a || !src) {   // link not ready yet (slow network): fetch it, then try — usually fine on computers
+      const url = await resolve(); if (!url) return;
+      await new Promise((r) => setTimeout(r, 0)); a = ref.current; if (!a) return;
+    }
     if (a.paused) { a.play().then(() => setPlaying(true)).catch((e) => { console.warn('[echoes] playback failed', e?.message); setFailed(true); setPlaying(false); }); } else { a.pause(); setPlaying(false); }
   };
   const bars = 48;
   return (
     <div className="flex items-center gap-3 card px-4 py-2.5">
-      {src && <audio ref={ref} src={src} preload="metadata" />}
+      {src && <audio ref={ref} src={src} preload="metadata" playsInline />}
       <button className={'w-9 h-9 text-paper text-[11px] flex items-center justify-center cursor-pointer flex-none ' + (canPlay && !failed ? 'bg-primary' : 'bg-ink-3') + ' rounded-full'} onClick={toggle} aria-label={playing ? 'pause' : 'play'} title={failed ? (lang === 'zh' ? '原声仅对家人开放' : 'Audio is family-only') : ''}>{loading ? '…' : playing ? '❚❚' : '▶'}</button>
       <div className="flex-1 flex items-center gap-[3px] h-7 overflow-hidden cursor-pointer" aria-hidden="true" onClick={(e) => { const a = ref.current; if (!a || !a.duration) return; const r = e.currentTarget.getBoundingClientRect(); a.currentTime = ((e.clientX - r.left) / r.width) * a.duration; }}>
         {Array.from({ length: bars }).map((_, i) => <span key={i} className="flex-1 bg-primary rounded-full" style={{ height: `${20 + Math.abs(Math.sin(i * 0.7) * 70)}%`, opacity: i / bars <= prog ? 1 : 0.3 }} />)}
