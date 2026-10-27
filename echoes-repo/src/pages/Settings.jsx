@@ -7,6 +7,10 @@ import { useAuth } from '../lib/auth';
 import { profileView } from '../lib/loc';
 import { billingInfo, startCheckout, openPortal, joinWaitlist } from '../lib/db';
 
+// Defined outside Settings on purpose: a component created inside another component's render is a
+// brand-new component on every keystroke, so React rebuilds it and the input inside loses focus.
+const Section = ({ title, children }) => <section className="border-t border-ink pt-4 mb-12"><h2 className="h2 mb-5">{title}</h2>{children}</section>;
+
 export default function Settings() {
   const { lang, setLang } = useT(); const zh = lang === 'zh'; const nav = useNavigate();
   const { state, allStories, setActive, setPlan, deleteAccount, updateStoryteller, reset, seedDemo, setMeAvatar, setMyName, live } = useStore(); const auth = useAuth(); const [demoBusy, setDemoBusy] = useState(false);
@@ -21,7 +25,6 @@ export default function Settings() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const manage = async () => { try { window.location.href = await openPortal(state.family.id); } catch { alert(zh ? '暂时打不开订阅管理，请稍后再试。' : 'Could not open subscription settings. Please try again.'); } };
   const used = allStories.length; const lifetime = state.billing?.status === 'lifetime'; const cancelling = state.billing?.status === 'cancelling';
-  const Section = ({ title, children }) => <section className="border-t border-ink pt-4 mb-12"><h2 className="h2 mb-5">{title}</h2>{children}</section>;
   return (
     <Shell>
       <Narrow>
