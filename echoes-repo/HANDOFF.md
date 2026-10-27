@@ -211,3 +211,7 @@ Invite   { name, sub, perms:['read'|'correct'|'add'] }
 - Community cards now show their photo on phones too.
 - **fix22 · ghost sessions**: after the pre-launch cleanup deleted CC's test accounts, a browser still holding one of their sign-in tokens could reach onboarding and failed with `families_created_by_fkey`. On load the app now checks the token with the server and drops it if the account no longer exists; sign-up clears any old session first; onboarding shows "please sign in again" instead of the raw database error.
 - **fix23 · language during onboarding**: the 中/EN switch now stays in the header until the first storyteller is saved (sign-up, log-in, verify, /mode, /profile), then moves to Settings. First visit still follows the browser language.
+
+## 2026-10-27 · Prices changed to US$2.99/month, US$9.99 lifetime; webhook URL fixed
+- Helen created new Stripe prices (monthly US$2.99, lifetime US$9.99) and pointed `STRIPE_PRICE_ID` / `STRIPE_PRICE_ID_LIFETIME` at them. Homepage pricing (`landingCopy.js`), terms (`Legal.jsx`) and the `_billing.js` comment now match. Upgrade and Settings pages read amounts from Stripe, so they needed no change.
+- The live Stripe webhook was pointed at `/api/stripewebhook` (no hyphen), which the SPA rewrite answered with 405, so no payment upgraded a family. It now points at `/api/stripe-webhook`.
